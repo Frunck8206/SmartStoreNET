@@ -9,6 +9,7 @@ using SmartStore.Core.Domain.Orders;
 using SmartStore.Core.Domain.Payments;
 using SmartStore.Core.Domain.Shipping;
 using SmartStore.Core.Domain.Tax;
+using SmartStore.Core.Localization;
 using SmartStore.Rules;
 using SmartStore.Rules.Domain;
 using SmartStore.Rules.Filters;
@@ -31,6 +32,8 @@ namespace SmartStore.Services.Customers
             _rsCustomer = rsCustomer;
             _services = services;
         }
+
+        public Localizer T { get; set; } = NullLocalizer.Instance;
 
         public FilterExpressionGroup CreateExpressionGroup(int ruleSetId)
         {
@@ -75,7 +78,6 @@ namespace SmartStore.Services.Customers
                 pageSize);
         }
 
-
         public IPagedList<Customer> ProcessFilter(
             int[] ruleSetIds, 
             LogicalRuleOperator logicalOperator,
@@ -107,7 +109,7 @@ namespace SmartStore.Services.Customers
             }
 
             // TODO: really untracked?
-            var query = _rsCustomer.TableUntracked.Where(x => !x.Deleted);
+            var query = _rsCustomer.TableUntracked.Where(x => !x.Deleted && !x.IsSystemAccount);
 
             FilterExpressionGroup group = null;
 
@@ -160,295 +162,274 @@ namespace SmartStore.Services.Customers
                 new FilterDescriptor<Customer, bool>(x => x.Active)
                 {
                     Name = "Active",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Active"),
-                    RuleType = RuleType.Boolean,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, bool>(x => x.IsTaxExempt)
-                {
-                    Name = "TaxExempt",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.TaxExempt"),
-                    RuleType = RuleType.Boolean,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastActivityDateUtc, DateTime.UtcNow))
-                {
-                    Name = "LastActivityDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.LastActivityDays"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastLoginDateUtc, DateTime.UtcNow))
-                {
-                    Name = "LastLoginDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.LastLoginDays"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.CreatedOnUtc, DateTime.UtcNow))
-                {
-                    Name = "CreatedDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.CreatedDays"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.BirthDate, DateTime.UtcNow))
-                {
-                    Name = "BirthDateDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.BirthDate"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
-                },
-                new FilterDescriptor<Customer, int?>(x => x.BillingAddress != null ? x.BillingAddress.CountryId : 0)
-                {
-                    Name = "BillingCountry",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.BillingCountry"),
-                    RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new RemoteRuleValueSelectList("Country") { Multiple = true }
-                },
-                new FilterDescriptor<Customer, int?>(x => x.ShippingAddress != null ? x.ShippingAddress.CountryId : 0)
-                {
-                    Name = "ShippingCountry",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.ShippingCountry"),
-                    RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new RemoteRuleValueSelectList("Country") { Multiple = true }
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Active"),
+                    RuleType = RuleType.Boolean
                 },
                 new FilterDescriptor<Customer, string>(x => x.Salutation)
                 {
                     Name = "Salutation",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Salutation"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Salutation"),
+                    RuleType = RuleType.String
                 },
                 new FilterDescriptor<Customer, string>(x => x.Title)
                 {
                     Name = "Title",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Title"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Title"),
+                    RuleType = RuleType.String
                 },
                 new FilterDescriptor<Customer, string>(x => x.Company)
                 {
                     Name = "Company",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Company"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Company"),
+                    RuleType = RuleType.String
                 },
                 new FilterDescriptor<Customer, string>(x => x.Gender)
                 {
                     Name = "Gender",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Gender"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Gender"),
+                    RuleType = RuleType.String
                 },
                 new FilterDescriptor<Customer, string>(x => x.CustomerNumber)
                 {
                     Name = "CustomerNumber",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.CustomerNumber"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.CustomerNumber"),
+                    RuleType = RuleType.String
                 },
-                new FilterDescriptor<Customer, string>(x => x.TimeZoneId)
+                new AnyFilterDescriptor<Customer, CustomerRoleMapping, int>(x => x.CustomerRoleMappings, rm => rm.CustomerRoleId)
                 {
-                    Name = "TimeZone",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.TimeZone"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    Name = "IsInCustomerRole",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.IsInCustomerRole"),
+                    RuleType = RuleType.IntArray,
+                    SelectList = new RemoteRuleValueSelectList("CustomerRole") { Multiple = true }
+                },
+                new FilterDescriptor<Customer, bool>(x => x.IsTaxExempt)
+                {
+                    Name = "TaxExempt",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.TaxExempt"),
+                    RuleType = RuleType.Boolean
                 },
                 new FilterDescriptor<Customer, int>(x => x.VatNumberStatusId)
                 {
                     Name = "VatNumberStatus",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.VatNumberStatus"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.VatNumberStatus"),
                     RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new LocalRuleValueSelectList(vatNumberStatus)
                 },
                 new FilterDescriptor<Customer, int>(x => x.TaxDisplayTypeId)
                 {
                     Name = "TaxDisplayType",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.TaxDisplayType"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.TaxDisplayType"),
                     RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new LocalRuleValueSelectList(taxDisplayTypes)
                 },
-                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastForumVisit, DateTime.UtcNow))
+                new FilterDescriptor<Customer, string>(x => x.TimeZoneId)
                 {
-                    Name = "LastForumVisitDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.LastForumVisit"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
+                    Name = "TimeZone",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.TimeZone"),
+                    RuleType = RuleType.String
                 },
                 new FilterDescriptor<Customer, string>(x => x.LastUserAgent)
                 {
                     Name = "LastUserAgent",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.LastUserAgent"),
-                    RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.LastUserAgent"),
+                    RuleType = RuleType.String
                 },
-
-                new AnyFilterDescriptor<Customer, CustomerRoleMapping, int>(x => x.CustomerRoleMappings, rm => rm.CustomerRoleId)
+                new FilterDescriptor<Customer, int?>(x => x.BillingAddress != null ? x.BillingAddress.CountryId : 0)
                 {
-                    Name = "IsInCustomerRole",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.IsInCustomerRole"),
+                    Name = "BillingCountry",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.BillingCountry"),
                     RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new RemoteRuleValueSelectList("CustomerRole") { Multiple = true }
+                    SelectList = new RemoteRuleValueSelectList("Country") { Multiple = true }
+                },
+                new FilterDescriptor<Customer, int?>(x => x.ShippingAddress != null ? x.ShippingAddress.CountryId : 0)
+                {
+                    Name = "ShippingCountry",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.ShippingCountry"),
+                    RuleType = RuleType.IntArray,
+                    SelectList = new RemoteRuleValueSelectList("Country") { Multiple = true }
                 },
                 new FilterDescriptor<Customer, int>(x => x.ReturnRequests.Count())
                 {
                     Name = "ReturnRequestCount",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.ReturnRequestCount"),
-                    RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.ReturnRequestCount"),
+                    RuleType = RuleType.Int
                 },
 
-                new FilterDescriptor<Customer, int>(x => x.Orders.Count(o => !o.Deleted && o.OrderStatusId == 30))
+                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastActivityDateUtc, DateTime.UtcNow))
                 {
-                    Name = "CompletedOrderCount",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.CompletedOrderCount"),
-                    RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0]
+                    Name = "LastActivityDays",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.LastActivityDays"),
+                    RuleType = RuleType.NullableInt
                 },
-                new FilterDescriptor<Customer, int>(x => x.Orders.Count(o => !o.Deleted && o.OrderStatusId == 40))
+                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastLoginDateUtc, DateTime.UtcNow))
                 {
-                    Name = "CancelledOrderCount",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.CancelledOrderCount"),
+                    Name = "LastLoginDays",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.LastLoginDays"),
+                    RuleType = RuleType.NullableInt
+                },
+                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.LastForumVisit, DateTime.UtcNow))
+                {
+                    Name = "LastForumVisitDays",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.LastForumVisit"),
+                    RuleType = RuleType.NullableInt
+                },
+                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.CreatedOnUtc, DateTime.UtcNow))
+                {
+                    Name = "CreatedDays",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.CreatedDays"),
+                    RuleType = RuleType.NullableInt
+                },
+                new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.BirthDate, DateTime.UtcNow))
+                {
+                    Name = "BirthDateDays",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.BirthDate"),
+                    RuleType = RuleType.NullableInt
+                },
+                new TargetGroupFilterDescriptor(_ruleFactory, this)
+                {
+                    Name = "RuleSet",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.RuleSet"),
                     RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0]
+                    Operators = new[] { RuleOperator.IsEqualTo, RuleOperator.IsNotEqualTo },
+                    SelectList = new RemoteRuleValueSelectList("TargetGroup")
+                },
+
+                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.StoreId)
+                {
+                    Name = "OrderInStore",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.OrderInStore"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.IntArray,
+                    SelectList = new LocalRuleValueSelectList(stores) { Multiple = true }
                 },
                 new FilterDescriptor<Customer, int>(x => x.Orders.Count(o => !o.Deleted && (o.OrderStatusId == 10 || o.OrderStatusId == 20)))
                 {
                     Name = "NewOrderCount",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.NewOrderCount"),
-                    RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.NewOrderCount"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Int
                 },
-                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.StoreId)
+                new FilterDescriptor<Customer, int>(x => x.Orders.Count(o => !o.Deleted && o.OrderStatusId == 30))
                 {
-                    Name = "OrderInStore",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.OrderInStore"),
-                    RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new LocalRuleValueSelectList(stores) { Multiple = true }
+                    Name = "CompletedOrderCount",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.CompletedOrderCount"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Int
+                },
+                new FilterDescriptor<Customer, int>(x => x.Orders.Count(o => !o.Deleted && o.OrderStatusId == 40))
+                {
+                    Name = "CancelledOrderCount",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.CancelledOrderCount"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Int
                 },
                 new FilterDescriptor<Customer, int?>(x => DbFunctions.DiffDays(x.Orders.Where(o => !o.Deleted).Max(o => o.CreatedOnUtc), DateTime.UtcNow))
                 {
                     Name = "LastOrderDateDays",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.LastOrderDateDays"),
-                    RuleType = RuleType.NullableInt,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.LastOrderDateDays"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.NullableInt
                 },
                 new AnyFilterDescriptor<Customer, Order, decimal>(x => x.Orders.Where(o => !o.Deleted), o => o.OrderTotal)
                 {
                     Name = "OrderTotal",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.OrderTotal"),
-                    RuleType = RuleType.Money,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.OrderTotal"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Money
                 },
                 new AnyFilterDescriptor<Customer, Order, decimal>(x => x.Orders.Where(o => !o.Deleted), o => o.OrderSubtotalInclTax)
                 {
                     Name = "OrderSubtotalInclTax",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.OrderSubtotalInclTax"),
-                    RuleType = RuleType.Money,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.OrderSubtotalInclTax"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Money
                 },
                 new AnyFilterDescriptor<Customer, Order, decimal>(x => x.Orders.Where(o => !o.Deleted), o => o.OrderSubtotalExclTax)
                 {
                     Name = "OrderSubtotalExclTax",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.OrderSubtotalExclTax"),
-                    RuleType = RuleType.Money,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.OrderSubtotalExclTax"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Money
+                },
+                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.ShippingStatusId)
+                {
+                    Name = "ShippingStatus",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.ShippingStatus"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Int,
+                    SelectList = new LocalRuleValueSelectList(shippingStatus)
+                },
+                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.PaymentStatusId)
+                {
+                    Name = "PaymentStatus",
+                    DisplayName = T("Admin.Rules.FilterDescriptor.PaymentStatus"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Int,
+                    SelectList = new LocalRuleValueSelectList(paymentStatus)
                 },
                 new AnyFilterDescriptor<Customer, OrderItem, int>(x => x.Orders.Where(o => !o.Deleted).SelectMany(o => o.OrderItems), oi => oi.ProductId)
                 {
                     Name = "HasPurchasedProduct",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.HasPurchasedProduct"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.HasPurchasedProduct"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("Product") { Multiple = true }
                 },
                 new AllFilterDescriptor<Customer, OrderItem, int>(x => x.Orders.Where(o => !o.Deleted).SelectMany(o => o.OrderItems), oi => oi.ProductId)
                 {
                     Name = "HasPurchasedAllProducts",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.HasPurchasedAllProducts"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.HasPurchasedAllProducts"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.IntArray,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("Product") { Multiple = true }
                 },
                 new AnyFilterDescriptor<Customer, Order, bool>(x => x.Orders.Where(o => !o.Deleted), o => o.AcceptThirdPartyEmailHandOver)
                 {
                     Name = "AcceptThirdPartyEmailHandOver",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.AcceptThirdPartyEmailHandOver"),
-                    RuleType = RuleType.Boolean,
-                    Constraints = new IRuleConstraint[0]
+                    DisplayName = T("Admin.Rules.FilterDescriptor.AcceptThirdPartyEmailHandOver"),
+                    GroupKey = "Admin.Orders",
+                    RuleType = RuleType.Boolean
                 },
                 new AnyFilterDescriptor<Customer, Order, string>(x => x.Orders.Where(o => !o.Deleted), o => o.CustomerCurrencyCode)
                 {
                     Name = "CurrencyCode",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Currency"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Currency"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("Currency")
                 },
                 new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.CustomerLanguageId)
                 {
                     Name = "OrderLanguage",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.Language"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.Language"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("Language")
                 },
                 new AnyFilterDescriptor<Customer, Order, string>(x => x.Orders.Where(o => !o.Deleted), o => o.PaymentMethodSystemName)
                 {
                     Name = "PaymentMethod",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.PaidBy"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.PaidBy"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("PaymentMethod")
-                },
-                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.PaymentStatusId)
-                {
-                    Name = "PaymentStatus",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.PaymentStatus"),
-                    RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new LocalRuleValueSelectList(paymentStatus)
                 },
                 new AnyFilterDescriptor<Customer, Order, string>(x => x.Orders.Where(o => !o.Deleted), o => o.ShippingMethod)
                 {
                     Name = "ShippingMethod",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.ShippingMethod"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.ShippingMethod"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("ShippingMethod")
                 },
                 new AnyFilterDescriptor<Customer, Order, string>(x => x.Orders.Where(o => !o.Deleted), o => o.ShippingRateComputationMethodSystemName)
                 {
                     Name = "ShippingRateComputationMethod",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.ShippingRateComputationMethod"),
+                    DisplayName = T("Admin.Rules.FilterDescriptor.ShippingRateComputationMethod"),
+                    GroupKey = "Admin.Orders",
                     RuleType = RuleType.String,
-                    Constraints = new IRuleConstraint[0],
                     SelectList = new RemoteRuleValueSelectList("ShippingRateComputationMethod")
                 },
-                new AnyFilterDescriptor<Customer, Order, int>(x => x.Orders.Where(o => !o.Deleted), o => o.ShippingStatusId)
-                {
-                    Name = "ShippingStatus",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.ShippingStatus"),
-                    RuleType = RuleType.Int,
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new LocalRuleValueSelectList(shippingStatus)
-                },
-                new TargetGroupFilterDescriptor(_ruleFactory, this)
-                {
-                    Name = "RuleSet",
-                    DisplayName = _services.Localization.GetResource("Admin.Rules.FilterDescriptor.RuleSet"),
-                    RuleType = RuleType.Int,
-                    Operators = new[] { RuleOperator.IsEqualTo, RuleOperator.IsNotEqualTo },
-                    Constraints = new IRuleConstraint[0],
-                    SelectList = new RemoteRuleValueSelectList("TargetGroup")
-                }
             };
 
             descriptors

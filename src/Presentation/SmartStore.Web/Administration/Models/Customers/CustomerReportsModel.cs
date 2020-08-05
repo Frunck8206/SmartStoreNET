@@ -4,7 +4,9 @@ namespace SmartStore.Admin.Models.Customers
 {
     public class CustomerReportsModel : ModelBase
     {
-        public BestCustomersReportModel BestCustomersByOrderTotal { get; set; }
-        public BestCustomersReportModel BestCustomersByNumberOfOrders { get; set; }
+        public int GridPageSize { get; set; }
+        public bool UsernamesEnabled { get; set; }
+
+        public TopCustomersReportModel TopCustomers { get; set; }
     }
 }

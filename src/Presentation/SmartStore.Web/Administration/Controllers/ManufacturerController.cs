@@ -16,7 +16,6 @@ using SmartStore.Services.Common;
 using SmartStore.Services.Discounts;
 using SmartStore.Services.Helpers;
 using SmartStore.Services.Localization;
-using SmartStore.Services.Media;
 using SmartStore.Services.Security;
 using SmartStore.Services.Seo;
 using SmartStore.Services.Stores;
@@ -40,7 +39,6 @@ namespace SmartStore.Admin.Controllers
         private readonly IStoreMappingService _storeMappingService;
         private readonly IAclService _aclService;
         private readonly IUrlRecordService _urlRecordService;
-        private readonly IPictureService _pictureService;
         private readonly ILanguageService _languageService;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
@@ -63,7 +61,6 @@ namespace SmartStore.Admin.Controllers
             IStoreMappingService storeMappingService,
             IAclService aclService,
             IUrlRecordService urlRecordService,
-            IPictureService pictureService,
             ILanguageService languageService,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
@@ -81,7 +78,6 @@ namespace SmartStore.Admin.Controllers
             _storeMappingService = storeMappingService;
             _aclService = aclService;
             _urlRecordService = urlRecordService;
-            _pictureService = pictureService;
             _languageService = languageService;
             _localizationService = localizationService;
             _localizedEntityService = localizedEntityService;
@@ -112,12 +108,6 @@ namespace SmartStore.Admin.Controllers
                 var seName = manufacturer.ValidateSeName(localized.SeName, localized.Name, false, localized.LanguageId);
                 _urlRecordService.SaveSlug(manufacturer, seName, localized.LanguageId);
             }
-        }
-
-        [NonAction]
-        protected void UpdatePictureSeoNames(Manufacturer manufacturer)
-        {
-            _pictureService.SetSeoFilename(manufacturer.MediaFileId.GetValueOrDefault(), _pictureService.GetPictureSeName(manufacturer.Name));
         }
 
         [NonAction]
@@ -267,7 +257,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [Permission(Permissions.Catalog.Manufacturer.Create)]
-        public ActionResult Create(ManufacturerModel model, bool continueEditing)
+        public ActionResult Create(ManufacturerModel model, bool continueEditing, FormCollection form)
         {
             if (ModelState.IsValid)
             {
@@ -296,9 +286,10 @@ namespace SmartStore.Admin.Controllers
                     _manufacturerService.UpdateManufacturer(manufacturer);
                 }
 
-                UpdatePictureSeoNames(manufacturer);
                 SaveAclMappings(manufacturer, model.SelectedCustomerRoleIds);
                 SaveStoreMappings(manufacturer, model.SelectedStoreIds);
+
+                Services.EventPublisher.Publish(new ModelBoundEvent(model, manufacturer, form));
 
                 _customerActivityService.InsertActivity("AddNewManufacturer", T("ActivityLog.AddNewManufacturer"), manufacturer.Name);
 
@@ -381,11 +372,10 @@ namespace SmartStore.Admin.Controllers
 
                 _manufacturerService.UpdateManufacturer(manufacturer);
 
-                Services.EventPublisher.Publish(new ModelBoundEvent(model, manufacturer, form));
-
-                UpdatePictureSeoNames(manufacturer);
                 SaveAclMappings(manufacturer, model.SelectedCustomerRoleIds);
                 SaveStoreMappings(manufacturer, model.SelectedStoreIds);
+
+                Services.EventPublisher.Publish(new ModelBoundEvent(model, manufacturer, form));
 
                 _customerActivityService.InsertActivity("EditManufacturer", T("ActivityLog.EditManufacturer"), manufacturer.Name);
 

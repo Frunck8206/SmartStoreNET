@@ -111,11 +111,15 @@ namespace SmartStore.Core
 				var skip = PageIndex * PageSize;
 				if (_isEfQuery)
 				{
-					return query.Skip(() => skip).Take(() => PageSize);
+					return skip == 0 
+						? query.Take(() => PageSize) 
+						: query.Skip(() => skip).Take(() => PageSize);
 				}
 				else
 				{
-					return query.Skip(skip).Take(PageSize);
+					return skip == 0 
+						? query.Take(PageSize) 
+						: query.Skip(skip).Take(PageSize);
 				}
 			}
 		}
@@ -151,6 +155,16 @@ namespace SmartStore.Core
 		public int PageIndex { get; set; }
 
 		public int PageSize { get; set; }
+
+		public async Task<int> GetTotalCountAsync()
+		{
+			if (!_totalCount.HasValue)
+			{
+				_totalCount = await SourceQuery.CountAsync();
+			}
+
+			return _totalCount.Value;
+		}
 
 		public int TotalCount
         {

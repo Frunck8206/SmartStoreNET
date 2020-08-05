@@ -34,9 +34,6 @@ Textvorschläge:</div><ul>
 	<LocaleResource Name="IncompleteProfileDetails">
 		<Value>Unvollständige Amazon Profildaten!</Value>
 	</LocaleResource>
-	<LocaleResource Name="PaymentMethodNotActive">
-		<Value>Die Zahlungsart "Login und Bezahlen mit Amazon" ist für Shop "{0}" nicht verfügbar.</Value>
-	</LocaleResource>
 	<LocaleResource Name="MissingCheckoutSessionState">
 		<Value>Fehlender Checkout-Sitzungsstatus für "Login und Bezahlen mit Amazon". Ihre Zahlung kann leider nicht bearbeitet werden. Bitte gehen Sie zurück in den Warenkorb und Durchlaufen Sie den Checkout erneut.</Value>
 	</LocaleResource>
@@ -337,4 +334,7 @@ Textvorschläge:</div><ul>
 	<LocaleResource Name="InformCustomerAddErrors.Hint">
 		<Value>Legt fest, ob der genaue Wortlaut der Fehlermeldung der Auftragsnotiz bzw. E-Mail angehängt werden soll.</Value>
 	</LocaleResource>
+  <LocaleResource Name="CookieInfo">
+    <Value>Amazon Pay nutzt Cookies zur Darstellung und Abwicklung des Zahlungsvorgangs über Amazon.</Value>
+  </LocaleResource>
 </Language>

@@ -4,13 +4,17 @@ using System.Linq;
 using System.ServiceModel.Syndication;
 using System.Web.Mvc;
 using System.Web.Routing;
+using SmartStore.ComponentModel;
 using SmartStore.Core;
 using SmartStore.Core.Caching;
 using SmartStore.Core.Domain.Blogs;
 using SmartStore.Core.Domain.Customers;
 using SmartStore.Core.Domain.Localization;
 using SmartStore.Core.Domain.Media;
+using SmartStore.Core.Domain.Seo;
 using SmartStore.Core.Logging;
+using SmartStore.Core.Security;
+using SmartStore.Services;
 using SmartStore.Services.Blogs;
 using SmartStore.Services.Common;
 using SmartStore.Services.Customers;
@@ -29,10 +33,6 @@ using SmartStore.Web.Framework.Seo;
 using SmartStore.Web.Infrastructure.Cache;
 using SmartStore.Web.Models.Blogs;
 using SmartStore.Web.Models.Common;
-using SmartStore.Core.Domain.Seo;
-using SmartStore.ComponentModel;
-using SmartStore.Core.Security;
-using SmartStore.Services;
 using SmartStore.Web.Models.Media;
 
 namespace SmartStore.Web.Controllers
@@ -40,10 +40,9 @@ namespace SmartStore.Web.Controllers
     [RewriteUrl(SslRequirement.No)]
     public partial class BlogController : PublicControllerBase
     {
-        #region Fields
         private readonly ICommonServices _services;
         private readonly IBlogService _blogService;
-        private readonly IPictureService _pictureService;
+        private readonly IMediaService _mediaService;
         private readonly ICustomerContentService _customerContentService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IWebHelper _webHelper;
@@ -60,13 +59,10 @@ namespace SmartStore.Web.Controllers
         private readonly CaptchaSettings _captchaSettings;
         private readonly SeoSettings _seoSettings;
 
-        #endregion
-
-        #region Constructors
-
-        public BlogController(ICommonServices services, 
+        public BlogController(
+            ICommonServices services, 
             IBlogService blogService,
-            IPictureService pictureService,
+            IMediaService mediaService,
             ICustomerContentService customerContentService,
             IDateTimeHelper dateTimeHelper,
             IWebHelper webHelper,
@@ -84,7 +80,7 @@ namespace SmartStore.Web.Controllers
         {
             _services = services;
             _blogService = blogService;
-            _pictureService = pictureService;
+            _mediaService = mediaService;
             _customerContentService = customerContentService;
             _dateTimeHelper = dateTimeHelper;
             _webHelper = webHelper;
@@ -102,24 +98,24 @@ namespace SmartStore.Web.Controllers
             _seoSettings = seoSettings;
         }
 
-        #endregion
-
         #region Utilities
 
         [NonAction]
-        protected PictureModel PrepareBlogPostPictureModel(BlogPost blogPost, int? pictureId)
+        protected PictureModel PrepareBlogPostPictureModel(BlogPost blogPost, int? fileId)
         {
-            var pictureInfo = _pictureService.GetPictureInfo(pictureId);
+            var file = _mediaService.GetFileById(fileId ?? 0, MediaLoadFlags.AsNoTracking);
 
-            var pictureModel = new PictureModel {
+            var pictureModel = new PictureModel
+            {
                 PictureId = blogPost.MediaFileId.GetValueOrDefault(),
                 Size = 512,
-                ImageUrl = _pictureService.GetUrl(pictureInfo, 512, false),
-                FullSizeImageUrl = _pictureService.GetUrl(pictureInfo, 0, false),
-                FullSizeImageWidth = pictureInfo?.Width,
-                FullSizeImageHeight = pictureInfo?.Height,
-                Title = blogPost.Title,
-                AlternateText = blogPost.Title
+                ImageUrl = _mediaService.GetUrl(file, 512, null, false),
+                FullSizeImageUrl = _mediaService.GetUrl(file, 0, null, false),
+                FullSizeImageWidth = file?.Dimensions.Width,
+                FullSizeImageHeight = file?.Dimensions.Height,
+                Title = file?.File?.GetLocalized(x => x.Title)?.Value.NullEmpty() ?? blogPost.Title,
+                AlternateText = file?.File?.GetLocalized(x => x.Alt)?.Value.NullEmpty() ?? blogPost.Title,
+                File = file
             };
 
             return pictureModel;
@@ -190,7 +186,7 @@ namespace SmartStore.Web.Controllers
 						AllowViewingProfiles = _customerSettings.AllowViewingProfiles && !isGuest
                     };
 
-                    commentModel.Avatar = bc.Customer.ToAvatarModel(_genericAttributeService, _pictureService, _customerSettings, _mediaSettings, Url, commentModel.CustomerName);
+                    commentModel.Avatar = bc.Customer.ToAvatarModel(_genericAttributeService, _customerSettings, _mediaSettings, commentModel.CustomerName);
 
                     model.Comments.Comments.Add(commentModel);
                 }
@@ -223,11 +219,11 @@ namespace SmartStore.Web.Controllers
             IPagedList<BlogPost> blogPosts;
             if (!command.Tag.HasValue())
             {
-				blogPosts = _blogService.GetAllBlogPosts(storeId, workingLanguageId, dateFrom, dateTo, command.PageNumber - 1, command.PageSize);
+				blogPosts = _blogService.GetAllBlogPosts(storeId, workingLanguageId, dateFrom, dateTo, command.PageNumber - 1, command.PageSize, _services.WorkContext.CurrentCustomer.IsAdmin());
             }
             else
             {
-				blogPosts = _blogService.GetAllBlogPostsByTag(storeId, workingLanguageId, command.Tag, command.PageNumber - 1, command.PageSize);
+				blogPosts = _blogService.GetAllBlogPostsByTag(storeId, workingLanguageId, command.Tag, command.PageNumber - 1, command.PageSize, _services.WorkContext.CurrentCustomer.IsAdmin());
             }
 
             model.PagingFilteringContext.LoadPagedList(blogPosts);
@@ -308,7 +304,7 @@ namespace SmartStore.Web.Controllers
 
         public ActionResult BlogByTag(string tag, BlogPagingFilteringModel command)
         {
-			// INFO: param 'tag' redunadant, because OutputCache does not include
+			// INFO: param 'tag' redundant, because OutputCache does not include
 			// complex type params in cache key computing
 
 			if (!_blogSettings.Enabled)
@@ -320,7 +316,7 @@ namespace SmartStore.Web.Controllers
 
         public ActionResult BlogByMonth(string month, BlogPagingFilteringModel command)
         {
-			// INFO: param 'month' redunadant, because OutputCache does not include
+			// INFO: param 'month' redundant, because OutputCache does not include
 			// complex type params in cache key computing
 
 			if (!_blogSettings.Enabled)
@@ -383,7 +379,7 @@ namespace SmartStore.Web.Controllers
 				return HttpNotFound();
 
             var blogPost = _blogService.GetBlogPostById(blogPostId);
-            if (blogPost == null || !blogPost.IsPublished ||
+            if (blogPost == null || (!blogPost.IsPublished && !_services.WorkContext.CurrentCustomer.IsAdmin()) ||
                 (blogPost.StartDateUtc.HasValue && blogPost.StartDateUtc.Value >= DateTime.UtcNow) ||
                 (blogPost.EndDateUtc.HasValue && blogPost.EndDateUtc.Value <= DateTime.UtcNow))
 				return HttpNotFound();

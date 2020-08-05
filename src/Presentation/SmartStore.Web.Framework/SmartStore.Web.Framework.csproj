@@ -134,6 +134,7 @@
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Net.Http.Formatting, Version=5.2.7.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Microsoft.AspNet.WebApi.Client.5.2.7\lib\net45\System.Net.Http.Formatting.dll</HintPath>
@@ -222,9 +223,11 @@
     <Compile Include="Filters\GdprConsentAttribute.cs" />
     <Compile Include="Filters\CookieConsentFilter.cs" />
     <Compile Include="Filters\JsonNetAttribute.cs" />
+    <Compile Include="Filters\MaxMediaFileSizeAttribute.cs" />
     <Compile Include="Filters\ResponseFilterStream.cs" />
     <Compile Include="FrameworkCacheConsumer.cs" />
     <Compile Include="Localization\SetWorkingCultureAttribute.cs" />
+    <Compile Include="Modelling\MediaTemplateModel.cs" />
     <Compile Include="Modelling\Results\CachedFileResult.cs" />
     <Compile Include="Modelling\Results\FileResponder.cs" />
     <Compile Include="Modelling\Results\FileTransmitter.cs" />
@@ -233,6 +236,7 @@
     <Compile Include="Modelling\Results\PermissiveRedirectResult.cs" />
     <Compile Include="Modelling\Results\RootActionViewResult.cs" />
     <Compile Include="Plugins\PluginRazorHost.cs" />
+    <Compile Include="Plugins\PluginStarter.cs" />
     <Compile Include="Security\Honeypot\HtmlHoneypotExtensions.cs" />
     <Compile Include="Security\Honeypot\ValidateHoneypotAttribute.cs" />
     <Compile Include="Security\Honeypot\Honeypot.cs" />

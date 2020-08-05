@@ -228,9 +228,13 @@ namespace SmartStore.Services.Messages
 						var file = qea.MediaFile;
 						if (file != null)
 						{
-							var data = _services.PictureService.LoadPictureBinary(file);
-							attachment = new Attachment(data.ToStream(), file.Name, file.MimeType);
-						}
+                            var mediaFile = _services.MediaService.ConvertMediaFile(file);
+							var stream = mediaFile.OpenRead();
+                            if (stream != null)
+                            {
+                                attachment = new Attachment(stream, file.Name, file.MimeType);
+                            }
+                        }
 					}
 
 					if (attachment != null)

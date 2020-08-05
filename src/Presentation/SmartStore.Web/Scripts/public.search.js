@@ -29,7 +29,7 @@
 		    });
 
 		    box.on('keydown', function (e) {
-			    if (e.which == 13 /* Enter */) {
+			    if (e.which === 13 /* Enter */) {
 				    if (keyNav && dropBody.find('.key-hover').length > 0) {
 					    // Do not post form when key navigation is in progress
 					    e.preventDefault();
@@ -38,7 +38,7 @@
 		    });
 
 		    box.on('keyup', function (e) {
-			    if (e.which == 27 /* ESC */) {
+			    if (e.which === 27 /* ESC */) {
 				    closeDrop();
 			    }
 		    });
@@ -133,14 +133,16 @@
                 }
 		    }
 
-		    function openDrop() {
+			function openDrop() {
+				form.addClass('open');
 			    if (!drop.hasClass('open')) {
 				    drop.addClass('open');
 				    beginKeyEvents();
 			    }
 		    }
 		
-		    function closeDrop() {
+			function closeDrop() {
+				form.removeClass('open');
 			    drop.removeClass('open');
 			    endKeyEvents();
 		    }
@@ -251,8 +253,8 @@
 					idx = select.find('option:selected').index(),
 					otherIdx = otherSelect.find('option:selected').index();
 
-				function validateRangeControls() {
-					var newIdx = Math.min($('option', otherSelect).length - 1, Math.max(0, isMin ? idx + 1 : idx - 1));
+                function validateRangeControls() {
+                    var newIdx = Math.min($('option', otherSelect).length - 1, Math.max(0, isMin ? idx + 1 : idx - 1));
 					if (newIdx == idx) {
 						newIdx = 0;
 					}
@@ -261,7 +263,7 @@
 					otherSelect.trigger('change', [ true ]);
 				}
 
-				if (idx > 0 && otherIdx > 0 && ((isMin && idx >= otherIdx) || (!isMin && idx <= otherIdx))) {
+                if (idx > 0 && otherIdx > 0 && ((isMin && idx > otherIdx) || (!isMin && idx < otherIdx))) {
 					validateRangeControls();
 				}
             });

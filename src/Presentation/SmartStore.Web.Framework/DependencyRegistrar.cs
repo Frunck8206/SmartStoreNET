@@ -44,6 +44,7 @@ using SmartStore.Services.Catalog;
 using SmartStore.Services.Catalog.Extensions;
 using SmartStore.Services.Catalog.Importer;
 using SmartStore.Services.Catalog.Modelling;
+using SmartStore.Services.Catalog.Rules;
 using SmartStore.Services.Cms;
 using SmartStore.Services.Common;
 using SmartStore.Services.Configuration;
@@ -208,6 +209,7 @@ namespace SmartStore.Web.Framework
             builder.RegisterType<PermissionService>().As<IPermissionService>().InstancePerRequest();
             builder.RegisterType<AclService>().As<IAclService>().InstancePerRequest();
 			builder.RegisterType<GdprTool>().As<IGdprTool>().InstancePerRequest();
+			builder.RegisterType<CookieManager>().As<ICookieManager>().InstancePerRequest();
 
 			builder.RegisterType<GeoCountryLookup>().As<IGeoCountryLookup>().SingleInstance();
 			builder.RegisterType<CountryService>().As<ICountryService>().InstancePerRequest();
@@ -487,8 +489,8 @@ namespace SmartStore.Web.Framework
 	{
 		protected override void Load(ContainerBuilder builder)
 		{
-			builder.RegisterType<LanguageService>().As<ILanguageService>().InstancePerRequest();
 			
+			builder.RegisterType<LanguageService>().As<ILanguageService>().InstancePerRequest();
 			builder.RegisterType<TelerikLocalizationServiceFactory>().As<Telerik.Web.Mvc.Infrastructure.ILocalizationServiceFactory>().InstancePerRequest();
 			builder.RegisterType<LocalizationService>().As<ILocalizationService>().InstancePerRequest();
 
@@ -499,7 +501,7 @@ namespace SmartStore.Web.Framework
 			builder.RegisterType<LocalizationFileResolver>().As<ILocalizationFileResolver>().InstancePerRequest();
 			builder.RegisterType<LocalizedEntityService>().As<ILocalizedEntityService>().InstancePerRequest();
             builder.RegisterType<LocalizedEntityHelper>().InstancePerRequest();
-        }
+		}
 
 		protected override void AttachToComponentRegistration(IComponentRegistry componentRegistry, IComponentRegistration registration)
 		{
@@ -1110,7 +1112,6 @@ namespace SmartStore.Web.Framework
 		}
 
 		#endregion
-
 	}
 
     internal class TasksModule : Module
@@ -1214,6 +1215,11 @@ namespace SmartStore.Web.Framework
             builder.RegisterType<TargetGroupService>()
                 .As<ITargetGroupService>()
                 .Keyed<IRuleProvider>(RuleScope.Customer)
+                .InstancePerRequest();
+
+            builder.RegisterType<ProductRuleProvider>()
+                .As<IProductRuleProvider>()
+                .Keyed<IRuleProvider>(RuleScope.Product)
                 .InstancePerRequest();
 
             builder.RegisterType<DefaultRuleOptionsProvider>().As<IRuleOptionsProvider>().InstancePerRequest();

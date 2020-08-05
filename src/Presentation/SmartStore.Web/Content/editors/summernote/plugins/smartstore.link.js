@@ -309,23 +309,23 @@
 				var toggleLinkBtn = function () {
 					var enable = $linkUrl.val();
 					if (!linkInfo.img) {
-						enable = enable && $linkText.val();
+						enable = !!(enable) && !!($linkText.val());
 					}
 					ui.toggleBtn($linkBtn, enable);
 				};
 				var handleLinkTextUpdate = function () {
-					toggleLinkBtn();
 					// if linktext was modified by keyup,
 					// stop cloning text from linkUrl
 					linkInfo.text = $linkText.val();
+					toggleLinkBtn();
 				};
 				var handleLinkUrlUpdate = function () {
-					toggleLinkBtn();
 					// display same link on `Text to display` input
 					// when create a new link
 					if (!linkInfo.text) {
 						$linkText.val($linkUrl.val());
 					}
+					toggleLinkBtn();
 				};
 
 				$linkText.on('input.linkDialog', handleLinkTextUpdate);
@@ -344,20 +344,15 @@
 
 						$fileBrowse.on('click.linkDialog', function (e) {
 							e.preventDefault();
-							var url = context.$note.data('file-browser-url');
-							if (url) {
-								var modalId = "modal-browse-files";
-								url = modifyUrl(url, "type", "#");
-								url = modifyUrl(url, "field", "note-link-url");
-								url = modifyUrl(url, "mid", modalId);
-								openPopup({
-									id: modalId,
-									url: url,
-									flex: true,
-									large: true,
-									backdrop: false
-								});
-							}
+
+							SmartStore.media.openFileManager({
+								el: this,
+								backdrop: false,
+								onSelect: function (files) {
+									if (!files.length) return;
+									$linkUrl.val(files[0].url).trigger('change').trigger('input');
+								}
+							});
 						});
 
 						if (!Modernizr.touchevents) {

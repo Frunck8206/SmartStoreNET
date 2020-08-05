@@ -468,7 +468,7 @@ namespace SmartStore.Admin.Controllers
                 .ToList();
 
             model.Projection.AvailableCurrencies = allCurrencies
-                .Select(y => new SelectListItem { Text = y.Name, Value = y.Id.ToString() })
+                .Select(y => new SelectListItem { Text = y.GetLocalized(z => z.Name), Value = y.Id.ToString() })
                 .ToList();
 
             // Filtering.
@@ -596,13 +596,7 @@ namespace SmartStore.Admin.Controllers
                 }
                 else if (model.Provider.EntityType == ExportEntityType.Customer)
                 {
-                    var allCustomerRoles = _customerService.GetAllCustomerRoles(true);
                     var allCountries = _countryService.GetAllCountries(true);
-
-                    model.Filter.AvailableCustomerRoles = allCustomerRoles
-                        .OrderBy(x => x.Name)
-                        .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
-                        .ToList();
 
                     model.Filter.AvailableCountries = allCountries
                         .Select(x => new SelectListItem { Text = x.GetLocalized(y => y.Name, language, true, false), Value = x.Id.ToString() })
@@ -618,13 +612,6 @@ namespace SmartStore.Admin.Controllers
                 }
                 else if (model.Provider.EntityType == ExportEntityType.ShoppingCartItem)
                 {
-                    var allCustomerRoles = _customerService.GetAllCustomerRoles(true);
-
-                    model.Filter.AvailableCustomerRoles = allCustomerRoles
-                        .OrderBy(x => x.Name)
-                        .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
-                        .ToList();
-
                     model.Filter.AvailableShoppingCartTypes = ShoppingCartType.ShoppingCart.ToSelectList(false).ToList();
                 }
 

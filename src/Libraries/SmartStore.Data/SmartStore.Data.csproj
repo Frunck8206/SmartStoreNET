@@ -34,6 +34,7 @@
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
     <LangVersion>latest</LangVersion>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -449,6 +450,50 @@
     <Compile Include="Migrations\202003112359492_MediaManager2.Designer.cs">
       <DependentUpon>202003112359492_MediaManager2.cs</DependentUpon>
     </Compile>
+    <Compile Include="Migrations\202003251118391_CategoryRuleSets.cs" />
+    <Compile Include="Migrations\202003251118391_CategoryRuleSets.Designer.cs">
+      <DependentUpon>202003251118391_CategoryRuleSets.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202003171812584_CookieManager.cs" />
+    <Compile Include="Migrations\202003171812584_CookieManager.Designer.cs">
+      <DependentUpon>202003171812584_CookieManager.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202003311314082_CookieManagerCountries.cs" />
+    <Compile Include="Migrations\202003311314082_CookieManagerCountries.Designer.cs">
+      <DependentUpon>202003311314082_CookieManagerCountries.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202004301922188_RemoveCustomerCustomerRoles.cs" />
+    <Compile Include="Migrations\202004301922188_RemoveCustomerCustomerRoles.Designer.cs">
+      <DependentUpon>202004301922188_RemoveCustomerCustomerRoles.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202005111006305_CampaignSubjectToAcl.cs" />
+    <Compile Include="Migrations\202005111006305_CampaignSubjectToAcl.Designer.cs">
+      <DependentUpon>202005111006305_CampaignSubjectToAcl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202005201826512_MediaManager3.cs" />
+    <Compile Include="Migrations\202005201826512_MediaManager3.Designer.cs">
+      <DependentUpon>202005201826512_MediaManager3.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202006250801086_V400Resources.cs" />
+    <Compile Include="Migrations\202006250801086_V400Resources.Designer.cs">
+      <DependentUpon>202006250801086_V400Resources.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202007160058551_MediaFileIndexReorg.cs" />
+    <Compile Include="Migrations\202007160058551_MediaFileIndexReorg.Designer.cs">
+      <DependentUpon>202007160058551_MediaFileIndexReorg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202007241131557_V401Resources.cs" />
+    <Compile Include="Migrations\202007241131557_V401Resources.Designer.cs">
+      <DependentUpon>202007241131557_V401Resources.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202007291847004_NewPropertiesAndIndexes.cs" />
+    <Compile Include="Migrations\202007291847004_NewPropertiesAndIndexes.Designer.cs">
+      <DependentUpon>202007291847004_NewPropertiesAndIndexes.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202007301117363_AddCustomerRoleOrderAmount.cs" />
+    <Compile Include="Migrations\202007301117363_AddCustomerRoleOrderAmount.Designer.cs">
+      <DependentUpon>202007301117363_AddCustomerRoleOrderAmount.cs</DependentUpon>
+    </Compile>
     <Compile Include="ObjectContextBase.SaveChanges.cs" />
     <Compile Include="Setup\Builder\ActivityLogTypeMigrator.cs" />
     <Compile Include="Setup\Builder\SettingsBuilder.cs" />
@@ -585,6 +630,7 @@
     <Compile Include="Utilities\DataMigrator.cs" />
     <Compile Include="Utilities\FastPager.cs" />
     <Compile Include="Utilities\MessageTemplateConverter.cs" />
+    <Compile Include="Utilities\SqlBlobStream.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -815,6 +861,39 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Migrations\202003112359492_MediaManager2.resx">
       <DependentUpon>202003112359492_MediaManager2.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202003251118391_CategoryRuleSets.resx">
+      <DependentUpon>202003251118391_CategoryRuleSets.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202003171812584_CookieManager.resx">
+      <DependentUpon>202003171812584_CookieManager.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202003311314082_CookieManagerCountries.resx">
+      <DependentUpon>202003311314082_CookieManagerCountries.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202004301922188_RemoveCustomerCustomerRoles.resx">
+      <DependentUpon>202004301922188_RemoveCustomerCustomerRoles.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202005111006305_CampaignSubjectToAcl.resx">
+      <DependentUpon>202005111006305_CampaignSubjectToAcl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202005201826512_MediaManager3.resx">
+      <DependentUpon>202005201826512_MediaManager3.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202006250801086_V400Resources.resx">
+      <DependentUpon>202006250801086_V400Resources.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202007160058551_MediaFileIndexReorg.resx">
+      <DependentUpon>202007160058551_MediaFileIndexReorg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202007241131557_V401Resources.resx">
+      <DependentUpon>202007241131557_V401Resources.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202007291847004_NewPropertiesAndIndexes.resx">
+      <DependentUpon>202007291847004_NewPropertiesAndIndexes.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202007301117363_AddCustomerRoleOrderAmount.resx">
+      <DependentUpon>202007301117363_AddCustomerRoleOrderAmount.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Sql\Indexes.sql" />
     <EmbeddedResource Include="Sql\StoredProcedures.sql" />

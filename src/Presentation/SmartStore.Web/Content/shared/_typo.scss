@@ -60,9 +60,13 @@ h6, .h6 {
     }
 }
 
-.font-weight-medium {
+.font-weight-medium, .fwm {
     font-weight: $font-weight-medium !important;
 }
+
+.fwb { @extend .font-weight-bold; }
+.fwn { @extend .font-weight-normal; }
+.fwl { @extend .font-weight-light; }
 
 
 // Heading & Title
@@ -87,7 +91,7 @@ h6, .h6 {
         display: inline-block;
         background: var(--body-bg, #fff);
         padding-right: 1rem;
-        font-weight: $font-weight-light;
+        font-weight: $font-weight-normal;
     }
 }
 
@@ -129,9 +133,13 @@ h6, .h6 {
 // ======================================
 
 .long-text {
-    font-size: 1.0625rem;
-    line-height: 1.75rem;
-    letter-spacing: .015625rem;
+    font-size: 1rem;
+
+    @include media-breakpoint-up(lg) {
+        font-size: 1.0625rem;
+        line-height: 1.75rem;
+        letter-spacing: .015625rem;
+    }
 
     h2, h3, h4 {
         font-weight: $font-weight-bold;

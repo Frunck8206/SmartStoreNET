@@ -184,6 +184,8 @@
       <Link>Properties\AssemblyVersionInfo.cs</Link>
     </Compile>
     <Compile Include="Blogs\BlogMessageFactoryExtensions.cs" />
+    <Compile Include="Cart\Rules\Impl\CartProductCountRule.cs" />
+    <Compile Include="Cart\Rules\Impl\WeekdayRule.cs" />
     <Compile Include="Cart\Rules\Impl\ProductFromCategoryInCartRule.cs" />
     <Compile Include="Cart\Rules\Impl\ProductFromManufacturerInCartRule.cs" />
     <Compile Include="Cart\Rules\Impl\ProductOnWishlistRule.cs" />
@@ -222,6 +224,11 @@
     <Compile Include="Catalog\Modelling\ProductVariantQueryItem.cs" />
     <Compile Include="Catalog\Modelling\ProductVariantQueryModelBinder.cs" />
     <Compile Include="Catalog\PriceCalculationContext.cs" />
+    <Compile Include="Catalog\Rules\IProductRuleProvider.cs" />
+    <Compile Include="Catalog\Rules\ProductRuleEvaluatorTask.cs" />
+    <Compile Include="Catalog\Rules\SearchFilterDescriptor.cs" />
+    <Compile Include="Catalog\Rules\ProductRuleProvider.cs" />
+    <Compile Include="Catalog\Rules\SearchFilterExpressionGroup.cs" />
     <Compile Include="Cms\Blocks\BlockHandlerBase.cs" />
     <Compile Include="Cms\Blocks\BlockMetadata.cs" />
     <Compile Include="Cms\Blocks\IBindableBlock.cs" />
@@ -247,7 +254,9 @@
     <Compile Include="Customers\Events\CustomerExportedEvent.cs" />
     <Compile Include="Customers\Events\CustomerLogedInEvent.cs" />
     <Compile Include="Customers\Events\CustomerRegisteredEvent.cs" />
+    <Compile Include="Customers\CookieManager.cs" />
     <Compile Include="Customers\GdprTool.cs" />
+    <Compile Include="Customers\ICookieManager.cs" />
     <Compile Include="Customers\IGdprTool.cs" />
     <Compile Include="Customers\Importer\CustomerImporter.cs" />
     <Compile Include="Customers\Rules\ITargetGroupService.cs" />
@@ -341,10 +350,13 @@
     <Compile Include="Logging\DbLogService.cs" />
     <Compile Include="Logging\ILogService.cs" />
     <Compile Include="Media\Events.cs" />
+    <Compile Include="Media\MediaExceptionFactory.cs" />
     <Compile Include="Media\MediaFileSystem.cs" />
-    <Compile Include="Media\ProcessImageException.cs" />
-    <Compile Include="Media\ProcessImageQuery.cs" />
-    <Compile Include="Media\ProcessImageResult.cs" />
+    <Compile Include="Media\MediaPathData.cs" />
+    <Compile Include="Media\Imaging\ProcessImageException.cs" />
+    <Compile Include="Media\Imaging\ProcessImageQuery.cs" />
+    <Compile Include="Media\Imaging\ProcessImageResult.cs" />
+    <Compile Include="Media\Migration\MediaMigrator3.cs" />
     <Compile Include="Media\Storage\DatabaseMediaStorageProvider.cs" />
     <Compile Include="Media\Storage\FileSystemMediaStorageProvider.cs" />
     <Compile Include="Media\Storage\IMediaStorageProvider.cs" />
@@ -352,37 +364,48 @@
     <Compile Include="Media\Storage\IMediaMover.cs" />
     <Compile Include="Media\Storage\ISupportsMediaMoving.cs" />
     <Compile Include="Media\Storage\MediaMoverContext.cs" />
-    <Compile Include="Media\v4\Extensions\IMediaTrackerExtensions.cs" />
-    <Compile Include="Media\v4\Extensions\MediaFileExtensions.cs" />
+    <Compile Include="Media\Extensions\IMediaServiceExtensions.cs" />
+    <Compile Include="Media\Extensions\IMediaTrackerExtensions.cs" />
+    <Compile Include="Media\Extensions\MediaFileExtensions.cs" />
     <Compile Include="Media\Storage\MediaMover.cs" />
     <Compile Include="Media\TransientMediaClearTask.cs" />
-    <Compile Include="Media\v4\Album\AlbumFileSystemAdapter.cs" />
-    <Compile Include="Media\v4\Album\AlbumRegistry.cs" />
-    <Compile Include="Media\v4\Album\IAlbumProvider.cs" />
-    <Compile Include="Media\v4\Album\IAlbumRegistry.cs" />
-    <Compile Include="Media\v4\Album\IFolderService.cs" />
-    <Compile Include="Media\v4\Album\IFolderServiceExtensions.cs" />
-    <Compile Include="Media\v4\Album\AlbumInfo.cs" />
-    <Compile Include="Media\v4\Album\MediaFolderInfo.cs" />
-    <Compile Include="Media\v4\Album\MediaFolderNode.cs" />
-    <Compile Include="Media\v4\Album\FolderService.cs" />
-    <Compile Include="Media\v4\Album\SystemAlbumProvider.cs" />
-    <Compile Include="Media\v4\IMediaService.cs" />
-    <Compile Include="Media\v4\MediaFileInfo.cs" />
-    <Compile Include="Media\v4\MediaModule.cs" />
-    <Compile Include="Media\v4\Search\MediaSearchQuery.cs" />
-    <Compile Include="Media\v4\MediaService.cs" />
-    <Compile Include="Media\v4\MediaTypes\MediaType.cs" />
-    <Compile Include="Media\v4\MediaTypes\IMediaTypeResolver.cs" />
-    <Compile Include="Media\v4\MediaTypes\MediaTypeResolver.cs" />
-    <Compile Include="Media\v4\Migration\MediaMigrator.cs" />
-    <Compile Include="Media\v4\Migration\SeedingDbMigrationConsumer.cs" />
-    <Compile Include="Media\v4\Search\MediaSearchResult.cs" />
-    <Compile Include="Media\v4\Tracking\IMediaTrackDetector.cs" />
-    <Compile Include="Media\v4\Tracking\IMediaTracker.cs" />
-    <Compile Include="Media\v4\Tracking\MediaTracker.cs" />
-    <Compile Include="Media\v4\Tracking\MediaTrackerHook.cs" />
-    <Compile Include="Media\v4\Tracking\TrackedMediaPropertyTable.cs" />
+    <Compile Include="Media\MediaService.Folder.cs" />
+    <Compile Include="Media\MediaServiceFileSystemAdapter.cs" />
+    <Compile Include="Media\Album\AlbumRegistry.cs" />
+    <Compile Include="Media\Album\IAlbumProvider.cs" />
+    <Compile Include="Media\Album\IAlbumRegistry.cs" />
+    <Compile Include="Media\Album\IFolderService.cs" />
+    <Compile Include="Media\Extensions\IFolderServiceExtensions.cs" />
+    <Compile Include="Media\Album\AlbumInfo.cs" />
+    <Compile Include="Media\Album\MediaFolderInfo.cs" />
+    <Compile Include="Media\Album\MediaFolderNode.cs" />
+    <Compile Include="Media\Album\FolderService.cs" />
+    <Compile Include="Media\Album\SystemAlbumProvider.cs" />
+    <Compile Include="Media\Handlers\ImageHandler.cs" />
+    <Compile Include="Media\Handlers\ImageHandlerBase.cs" />
+    <Compile Include="Media\Handlers\IMediaHandler.cs" />
+    <Compile Include="Media\Handlers\MediaHandlerContext.cs" />
+    <Compile Include="Media\IMediaService.cs" />
+    <Compile Include="Media\IMediaUrlGenerator.cs" />
+    <Compile Include="Media\MediaFileInfo.cs" />
+    <Compile Include="Media\MediaModule.cs" />
+    <Compile Include="Media\MediaUrlGenerator.cs" />
+    <Compile Include="Media\Search\FileCountResult.cs" />
+    <Compile Include="Media\Search\IMediaSearcher.cs" />
+    <Compile Include="Media\Search\MediaSearcher.cs" />
+    <Compile Include="Media\Search\MediaSearchQuery.cs" />
+    <Compile Include="Media\MediaService.cs" />
+    <Compile Include="Media\MediaTypes\MediaType.cs" />
+    <Compile Include="Media\MediaTypes\IMediaTypeResolver.cs" />
+    <Compile Include="Media\MediaTypes\MediaTypeResolver.cs" />
+    <Compile Include="Media\Migration\MediaMigrator.cs" />
+    <Compile Include="Media\Migration\SeedingDbMigrationConsumer.cs" />
+    <Compile Include="Media\Search\MediaSearchResult.cs" />
+    <Compile Include="Media\Tracking\IMediaTrackDetector.cs" />
+    <Compile Include="Media\Tracking\IMediaTracker.cs" />
+    <Compile Include="Media\Tracking\MediaTracker.cs" />
+    <Compile Include="Media\Tracking\MediaTrackerHook.cs" />
+    <Compile Include="Media\Tracking\TrackedMediaPropertyTable.cs" />
     <Compile Include="Messages\Importer\NewsLetterSubscriptionImporter.cs" />
     <Compile Include="Messages\Events.cs" />
     <Compile Include="Messages\IMessageFactory.cs" />
@@ -393,6 +416,7 @@
     <Compile Include="Messages\MessageModelProvider.OrderParts.cs" />
     <Compile Include="Messages\MessageModelProvider.Utils.cs" />
     <Compile Include="Messages\MessageModelProvider.cs" />
+    <Compile Include="Messages\NewsletterSubscriber.cs" />
     <Compile Include="Messages\TemplateModel.cs" />
     <Compile Include="Messages\QueuedMessagesClearTask.cs" />
     <Compile Include="Messages\CreateAttachmentsConsumer.cs" />
@@ -499,12 +523,11 @@
     <Compile Include="ICommonServices.cs" />
     <Compile Include="Hooks\LocalizedEntityHook.cs" />
     <Compile Include="Logging\DeleteLogsTask.cs" />
-    <Compile Include="Media\CachedImageResult.cs" />
-    <Compile Include="Media\IImageCache.cs" />
-    <Compile Include="Media\IImageProcessor.cs" />
-    <Compile Include="Media\ImageCache.cs" />
-    <Compile Include="Media\ImageCacheExtensions.cs" />
-    <Compile Include="Media\DefaultImageProcessor.cs" />
+    <Compile Include="Media\Imaging\CachedImage.cs" />
+    <Compile Include="Media\Imaging\IImageCache.cs" />
+    <Compile Include="Media\Imaging\IImageProcessor.cs" />
+    <Compile Include="Media\Imaging\ImageCache.cs" />
+    <Compile Include="Media\Imaging\DefaultImageProcessor.cs" />
     <Compile Include="Messages\NewsLetterSubscriptionService.cs" />
     <Compile Include="News\NewsService.cs" />
     <Compile Include="News\INewsService.cs" />
@@ -537,8 +560,6 @@
     <Compile Include="Logging\CustomerActivityService.cs" />
     <Compile Include="Media\IDownloadService.cs" />
     <Compile Include="Media\DownloadService.cs" />
-    <Compile Include="Media\IPictureService.cs" />
-    <Compile Include="Media\PictureService.cs" />
     <Compile Include="Messages\CampaignService.cs" />
     <Compile Include="Messages\ICampaignService.cs" />
     <Compile Include="Messages\EmailAccountService.cs" />
@@ -727,7 +748,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Configuration\SettingService.cs" />
     <Compile Include="Catalog\SpecificationAttributeService.cs" />
-    <Compile Include="Web References\EuropaCheckVatService\Reference.cs">
+    <Compile Include="Web References\EuropeCheckVatService\Reference.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Reference.map</DependentUpon>
@@ -755,31 +776,31 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
-    <None Include="Web References\EuropaCheckVatService\checkVatService.wsdl">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="Web References\EuropaCheckVatService\matchCode.datasource">
+    <None Include="Web References\EuropeCheckVatService\checkVatService.wsdl" />
+    <None Include="Web References\EuropeCheckVatService\matchCode.datasource">
       <DependentUpon>Reference.map</DependentUpon>
     </None>
-    <None Include="Web References\EuropaCheckVatService\Reference.map">
+    <None Include="Web References\EuropeCheckVatService\Reference.map">
       <Generator>MSDiscoCodeGenerator</Generator>
       <LastGenOutput>Reference.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <WebReferenceUrl Include="http://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl">
+    <WebReferenceUrl Include="https://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl">
       <UrlBehavior>Dynamic</UrlBehavior>
-      <RelPath>Web References\EuropaCheckVatService\</RelPath>
-      <UpdateFromURL>http://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl</UpdateFromURL>
+      <RelPath>Web References\EuropeCheckVatService\</RelPath>
+      <UpdateFromURL>https://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl</UpdateFromURL>
       <ServiceLocationURL>
       </ServiceLocationURL>
       <CachedDynamicPropName>
       </CachedDynamicPropName>
       <CachedAppSettingsObjectName>Settings</CachedAppSettingsObjectName>
-      <CachedSettingsPropName>Nop_Services_EuropaCheckVatService_checkVatService</CachedSettingsPropName>
+      <CachedSettingsPropName>SmartStore_Services_EuropeCheckVatService_checkVatService</CachedSettingsPropName>
     </WebReferenceUrl>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
   <ItemGroup>
     <Content Include="Cart\Readme.txt">
       <Generator>MSBuild:UpdateDesignTimeXaml</Generator>

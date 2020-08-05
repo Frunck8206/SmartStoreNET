@@ -3,6 +3,13 @@
 /// <reference path="../bs4/scss/bootstrap.scss" />
 
 
+// Common
+// ==============================================================
+
+.dropdown-menu {
+	--shadow-color-intensity: 0.5;
+}
+
 // Add nested dropdown support to BS4
 // ==============================================================
 
@@ -87,4 +94,49 @@
 			color: $dropdown-link-active-color;
 		}
 	}
+}
+
+
+// Flex Dropdown item (for items with keyboard shortcuts)
+// ==============================================================
+
+.dropdown-menu-flex .dropdown-item {
+	display: flex;
+	align-items: center;
+
+	> span {
+		flex-grow: 1;
+	}
+
+	> em {
+		font-style: normal;
+		text-align: right;
+		padding-left: 2rem;
+		margin-left: auto;
+		font-size: 90%;
+		opacity: 0.8;
+	}
+}
+
+
+// Animate dropdown menus in navbars
+// ==============================================================
+
+@mixin sliding-dropdown-menu() {
+    opacity: 0;
+    display: block;
+    visibility: hidden;
+    transform: translateY(var(--y, -16px));
+    transition: transform 0.2s ease, opacity 0.275s ease-out;
+    will-change: transform;
+
+    &.show {
+        visibility: visible;
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.navbar.navbar-slide .dropdown-menu {
+	@include sliding-dropdown-menu();
 }

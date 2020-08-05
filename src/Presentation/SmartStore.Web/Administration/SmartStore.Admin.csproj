@@ -109,6 +109,7 @@
     </Reference>
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Net.Http.Formatting, Version=5.2.7.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -209,7 +210,7 @@
     <Compile Include="Controllers\OrderController.cs" />
     <Compile Include="Controllers\PackagingController.cs" />
     <Compile Include="Controllers\PaymentController.cs" />
-    <Compile Include="Controllers\PictureController.cs" />
+    <Compile Include="Controllers\MediaController.cs" />
     <Compile Include="Controllers\PluginController.cs" />
     <Compile Include="Controllers\PollController.cs" />
     <Compile Include="Controllers\ProductAttributeController.cs" />
@@ -261,7 +262,10 @@
     <Compile Include="Models\Common\MaintenanceModel.cs" />
     <Compile Include="Models\Common\SystemWarningModel.cs" />
     <Compile Include="Models\Common\SystemInfoModel.cs" />
+    <Compile Include="Models\Customers\RegisteredCustomersDashboardReportModel.cs" />
     <Compile Include="Models\Customers\CustomerRoleMappingModel.cs" />
+    <Compile Include="Models\Customers\TopCustomersDashboardReportModel.cs" />
+    <Compile Include="Models\Dashboard\DashboardChartReportModel.cs" />
     <Compile Include="Models\DataExchange\CsvConfigurationModel.cs" />
     <Compile Include="Models\DataExchange\ExportDeploymentModel.cs" />
     <Compile Include="Models\DataExchange\ExportFilterModel.cs" />
@@ -282,7 +286,9 @@
     <Compile Include="Models\Messages\MessageTemplatePreviewModel.cs" />
     <Compile Include="Models\News\NewsItemListModel.cs" />
     <Compile Include="Models\Orders\AutoUpdateOrderItemModel.cs" />
+    <Compile Include="Models\Orders\BestsellersDashboardReportModel.cs" />
     <Compile Include="Models\Orders\CheckoutAttributeListModel.cs" />
+    <Compile Include="Models\Orders\LatestOrdersDashboardReportModel.cs" />
     <Compile Include="Models\Orders\ReturnRequestListModel.cs" />
     <Compile Include="Models\Payments\PaymentMethodEditModel.cs" />
     <Compile Include="Models\Plugins\LicenseLabelModel.cs" />
@@ -298,6 +304,7 @@
     <Compile Include="Models\Settings\PaymentSettingsModel.cs" />
     <Compile Include="Models\Settings\SearchSettingsModel.cs" />
     <Compile Include="Models\Settings\DataExchangeSettingsModel.cs" />
+    <Compile Include="Models\Stores\StoreDashboardReportModel.cs" />
     <Compile Include="Models\Tasks\ScheduleTaskHistoryModel.cs" />
     <Compile Include="Models\UrlRecord\UrlRecordListModel.cs" />
     <Compile Include="Models\UrlRecord\UrlRecordModel.cs" />
@@ -313,8 +320,6 @@
     <Compile Include="Models\Plugins\PluginModel.cs" />
     <Compile Include="Models\Polls\PollAnswerModel.cs" />
     <Compile Include="Models\Polls\PollModel.cs" />
-    <Compile Include="Models\Security\PermissionRecordModel.cs" />
-    <Compile Include="Models\Security\PermissionMappingModel.cs" />
     <Compile Include="Models\Logging\ActivityLogModel.cs" />
     <Compile Include="Models\Logging\ActivityLogSearchModel.cs" />
     <Compile Include="Models\Logging\ActivityLogTypeModel.cs" />
@@ -325,13 +330,13 @@
     <Compile Include="Models\Affiliates\AffiliateModel.cs" />
     <Compile Include="Models\Messages\CampaignModel.cs" />
     <Compile Include="Models\Blogs\BlogPostModel.cs" />
-    <Compile Include="Models\Orders\OrderIncompleteReportLineModel.cs" />
+    <Compile Include="Models\Orders\OrdersIncompleteDashboardReportModel.cs" />
     <Compile Include="Models\Orders\OrderAverageReportLineSummaryModel.cs" />
     <Compile Include="Models\Settings\BlogSettingsModel.cs" />
     <Compile Include="Models\Blogs\BlogCommentModel.cs" />
     <Compile Include="Models\Settings\CatalogSettingsModel.cs" />
-    <Compile Include="Models\Customers\BestCustomersReportModel.cs" />
-    <Compile Include="Models\Customers\BestCustomerReportLineModel.cs" />
+    <Compile Include="Models\Customers\TopCustomersReportModel.cs" />
+    <Compile Include="Models\Customers\TopCustomerReportLineModel.cs" />
     <Compile Include="Models\Customers\RegisteredCustomerReportLineModel.cs" />
     <Compile Include="Models\Customers\CustomerReportsModel.cs" />
     <Compile Include="Models\Orders\BestsellersReportLineModel.cs" />
@@ -491,6 +496,7 @@
     <Content Include="Content\telerik\img\sprite-vertical.png" />
     <Content Include="Content\telerik\img\sprite.png" />
     <Content Include="favicon.ico" />
+    <Content Include="Scripts\admin.dashboard.js" />
     <Content Include="Scripts\admin.common.js" />
     <Content Include="Content\filemanager\conf.json" />
     <Content Include="Content\filemanager\lang\bg.js" />
@@ -516,11 +522,13 @@
     <Content Include="Scripts\jquery-shims.js" />
     <Content Include="Scripts\jquery.tmpl.min.js" />
     <Content Include="Scripts\admin.globalinit.js" />
+    <Content Include="Scripts\admin.media.js" />
     <Content Include="Scripts\smartstore.rules.js" />
     <Content Include="Scripts\smartstore.iconchooser.js" />
     <Content Include="Scripts\smartstore.download.js" />
     <Content Include="Content\theme-rtl.scss" />
     <Content Include="Content\_rtl.scss" />
+    <Content Include="Content\_dashboard.scss" />
     <None Include="Scripts\_references.js" />
     <Content Include="sitemap.config">
       <SubType>Designer</SubType>
@@ -637,6 +645,13 @@
     <Content Include="Views\Shared\Layouts\_SettingLayout.cshtml" />
     <Content Include="Views\Shared\Menus\Settings.cshtml" />
     <Content Include="Views\Rule\Preview.cshtml" />
+    <Content Include="Views\Shared\Layouts\_MinimalLayout.cshtml" />
+    <Content Include="Views\Customer\TopCustomersDashboardReport.cshtml" />
+    <Content Include="Views\Order\LatestOrdersDashboardReport.cshtml" />
+    <Content Include="Views\Store\StoreDashboardReport.cshtml" />
+    <Content Include="Views\Order\OrdersDashboardReport.cshtml" />
+    <Content Include="Views\Customer\RegisteredCustomersDashboardReport.cshtml" />
+    <Content Include="Views\Media\FileConflictResolutionDialog.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Category\Create.cshtml" />
@@ -1070,12 +1085,6 @@
     <Content Include="Views\Customer\Reports.cshtml" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Views\Customer\_ReportBestCustomersByOrderTotal.cshtml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Views\Customer\_ReportBestCustomersByNumberOfOrders.cshtml" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="Views\Customer\ReportRegisteredCustomers.cshtml" />
   </ItemGroup>
   <ItemGroup>
@@ -1088,7 +1097,7 @@
     <Content Include="Views\Order\OrderAverageReport.cshtml" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Views\Order\OrderIncompleteReport.cshtml" />
+    <Content Include="Views\Order\OrdersIncompleteDashboardReport.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Common\Maintenance.cshtml" />
@@ -1098,6 +1107,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Order\BestsellersBriefReportByAmount.cshtml" />
+    <Content Include="Views\Order\BestsellersDashboardReport.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Setting\GeneralCommon.cshtml" />
@@ -1110,9 +1120,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Product\_CreateOrUpdateAttributeCombinationPopup.cshtml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Views\Security\Permissions.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Views\Log\View.cshtml" />

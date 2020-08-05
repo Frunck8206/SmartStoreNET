@@ -2,6 +2,7 @@ namespace SmartStore.Data.Migrations
 {
     using System.Data.Entity.Migrations;
     using System.Linq;
+    using System.Web.Hosting;
     using SmartStore.Core.Data;
     using SmartStore.Core.Domain.DataExchange;
     using SmartStore.Core.Domain.Localization;
@@ -11,44 +12,50 @@ namespace SmartStore.Data.Migrations
     {
         public override void Up()
         {
-            DropForeignKey("dbo.DiscountRequirement", "DiscountId", "dbo.Discount");
-            DropIndex("dbo.DiscountRequirement", new[] { "DiscountId" });
-            DropTable("dbo.DiscountRequirement");
+            //DropForeignKey("dbo.DiscountRequirement", "DiscountId", "dbo.Discount");
+            //DropIndex("dbo.DiscountRequirement", new[] { "DiscountId" });
+            //DropTable("dbo.DiscountRequirement");
         }
         
         public override void Down()
         {
-            CreateTable(
-                "dbo.DiscountRequirement",
-                c => new
-                    {
-                        Id = c.Int(nullable: false, identity: true),
-                        DiscountId = c.Int(nullable: false),
-                        DiscountRequirementRuleSystemName = c.String(),
-                        SpentAmount = c.Decimal(nullable: false, precision: 18, scale: 4),
-                        BillingCountryId = c.Int(nullable: false),
-                        ShippingCountryId = c.Int(nullable: false),
-                        RestrictedToCustomerRoleId = c.Int(),
-                        RestrictedProductIds = c.String(),
-                        RestrictedPaymentMethods = c.String(),
-                        RestrictedShippingOptions = c.String(),
-                        RestrictedToStoreId = c.Int(),
-                        ExtraData = c.String(),
-                    })
-                .PrimaryKey(t => t.Id);
+            //CreateTable(
+            //    "dbo.DiscountRequirement",
+            //    c => new
+            //        {
+            //            Id = c.Int(nullable: false, identity: true),
+            //            DiscountId = c.Int(nullable: false),
+            //            DiscountRequirementRuleSystemName = c.String(),
+            //            SpentAmount = c.Decimal(nullable: false, precision: 18, scale: 4),
+            //            BillingCountryId = c.Int(nullable: false),
+            //            ShippingCountryId = c.Int(nullable: false),
+            //            RestrictedToCustomerRoleId = c.Int(),
+            //            RestrictedProductIds = c.String(),
+            //            RestrictedPaymentMethods = c.String(),
+            //            RestrictedShippingOptions = c.String(),
+            //            RestrictedToStoreId = c.Int(),
+            //            ExtraData = c.String(),
+            //        })
+            //    .PrimaryKey(t => t.Id);
             
-            CreateIndex("dbo.DiscountRequirement", "DiscountId");
-            AddForeignKey("dbo.DiscountRequirement", "DiscountId", "dbo.Discount", "Id", cascadeDelete: true);
+            //CreateIndex("dbo.DiscountRequirement", "DiscountId");
+            //AddForeignKey("dbo.DiscountRequirement", "DiscountId", "dbo.Discount", "Id", cascadeDelete: true);
         }
 
         public bool RollbackOnFailure => false;
 
         public void Seed(SmartObjectContext context)
         {
-            if (!DataSettings.DatabaseIsInstalled())
+            if (!HostingEnvironment.IsHosted || !DataSettings.Current.IsSqlServer)
             {
                 return;
             }
+
+            // Remove discount requirement.
+            // Data has been migrated through 202001301039020_DiscountRuleSets.cs.
+            context.ExecuteSqlCommandSafe("ALTER TABLE [dbo].[DiscountRequirement] DROP CONSTRAINT [FK_dbo.DiscountRequirement_dbo.Discount_DiscountId]");
+            context.ExecuteSqlCommandSafe("DROP INDEX [IX_DiscountId] ON [dbo].[DiscountRequirement]");
+            context.ExecuteSqlCommandSafe("DROP TABLE [dbo].[DiscountRequirement]");
 
             // Remove data of obsolete filter plugins.
             var syncMappingsSet = context.Set<SyncMapping>();

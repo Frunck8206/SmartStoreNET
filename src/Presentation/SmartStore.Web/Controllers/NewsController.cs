@@ -37,11 +37,9 @@ namespace SmartStore.Web.Controllers
     [RewriteUrl(SslRequirement.No)]
     public partial class NewsController : PublicControllerBase
     {
-        #region Fields
-
         private readonly ICommonServices _services;
         private readonly INewsService _newsService;
-        private readonly IPictureService _pictureService;
+        private readonly IMediaService _mediaService;
         private readonly ICustomerContentService _customerContentService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IWebHelper _webHelper;
@@ -57,14 +55,10 @@ namespace SmartStore.Web.Controllers
         private readonly CustomerSettings _customerSettings;
         private readonly CaptchaSettings _captchaSettings;
 
-        #endregion
-
-        #region Constructors
-
         public NewsController(
             ICommonServices services,
             INewsService newsService,
-			IPictureService pictureService, 
+            IMediaService mediaService,
             ICustomerContentService customerContentService, 
             IDateTimeHelper dateTimeHelper,
             IWebHelper webHelper,
@@ -81,7 +75,7 @@ namespace SmartStore.Web.Controllers
         {
             _services = services;
             _newsService = newsService;
-            _pictureService = pictureService;
+            _mediaService = mediaService;
             _customerContentService = customerContentService;
             _dateTimeHelper = dateTimeHelper;
             _webHelper = webHelper;
@@ -97,8 +91,6 @@ namespace SmartStore.Web.Controllers
             _customerSettings = customerSettings;
             _captchaSettings = captchaSettings;
         }
-
-        #endregion
 
         #region Utilities
 
@@ -147,7 +139,7 @@ namespace SmartStore.Web.Controllers
                         AllowViewingProfiles = _customerSettings.AllowViewingProfiles && !isGuest,
                     };
 
-                    commentModel.Avatar = nc.Customer.ToAvatarModel(_genericAttributeService, _pictureService, _customerSettings, _mediaSettings, Url, commentModel.CustomerName);
+                    commentModel.Avatar = nc.Customer.ToAvatarModel(_genericAttributeService, _customerSettings, _mediaSettings, commentModel.CustomerName);
 
                     model.Comments.Comments.Add(commentModel);
                 }
@@ -161,21 +153,24 @@ namespace SmartStore.Web.Controllers
         public ActionResult HomePageNews()
         {
             if (!_newsSettings.Enabled || !_newsSettings.ShowNewsOnMainPage)
-                return Content("");
+            {
+                return new EmptyResult();
+            }
 
-            var workingLanguageId = _services.WorkContext.WorkingLanguage.Id;
-            var currentStoreId = _services.StoreContext.CurrentStore.Id;
-            var cacheKey = string.Format(ModelCacheEventConsumer.HOMEPAGE_NEWSMODEL_KEY, workingLanguageId, currentStoreId);
+            var languageId = _services.WorkContext.WorkingLanguage.Id;
+            var storeId = _services.StoreContext.CurrentStore.Id;
+            var includeHidden = _services.WorkContext.CurrentCustomer.IsAdmin();
+            var cacheKey = string.Format(ModelCacheEventConsumer.HOMEPAGE_NEWSMODEL_KEY, languageId, storeId, _newsSettings.MainPageNewsCount, includeHidden);
 
             var cachedModel = _cacheManager.Get(cacheKey, () =>
             {
-				var newsItems = _newsService.GetAllNews(workingLanguageId, currentStoreId, 0, _newsSettings.MainPageNewsCount);
+				var newsItems = _newsService.GetAllNews(languageId, storeId, 0, _newsSettings.MainPageNewsCount, includeHidden);
 
 				Services.DisplayControl.AnnounceRange(newsItems);
 
-				return new HomePageNewsItemsModel()
+				return new HomePageNewsItemsModel
                 {
-                    WorkingLanguageId = workingLanguageId,
+                    WorkingLanguageId = languageId,
                     NewsItems = newsItems
                         .Select(x =>
                         {
@@ -213,7 +208,7 @@ namespace SmartStore.Web.Controllers
             if (command.PageNumber <= 0)
                 command.PageNumber = 1;
 
-			var newsItems = _newsService.GetAllNews(workingLanguageId, _services.StoreContext.CurrentStore.Id, command.PageNumber - 1, command.PageSize);
+			var newsItems = _newsService.GetAllNews(workingLanguageId, _services.StoreContext.CurrentStore.Id, command.PageNumber - 1, command.PageSize, _services.WorkContext.CurrentCustomer.IsAdmin());
             model.PagingFilteringContext.LoadPagedList(newsItems);
 
             model.NewsItems = newsItems
@@ -281,16 +276,26 @@ namespace SmartStore.Web.Controllers
 		public ActionResult NewsItem(int newsItemId)
         {
             if (!_newsSettings.Enabled)
-				return HttpNotFound();
+            {
+                return HttpNotFound();
+            }
 
             var newsItem = _newsService.GetNewsById(newsItemId);
-            if (newsItem == null ||
-                !newsItem.Published ||
+            if (newsItem == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (!newsItem.Published ||
                 (newsItem.StartDateUtc.HasValue && newsItem.StartDateUtc.Value >= DateTime.UtcNow) ||
-				(newsItem.EndDateUtc.HasValue && newsItem.EndDateUtc.Value <= DateTime.UtcNow) ||
-				//Store mapping
-				!_storeMappingService.Authorize(newsItem))
-				return HttpNotFound();
+                (newsItem.EndDateUtc.HasValue && newsItem.EndDateUtc.Value <= DateTime.UtcNow) ||
+                !_storeMappingService.Authorize(newsItem))
+            {
+                if (!_services.WorkContext.CurrentCustomer.IsAdmin())
+                {
+                    return HttpNotFound();
+                }
+            }
 
             var model = new NewsItemModel();
             PrepareNewsItemModel(model, newsItem, true);
@@ -367,20 +372,19 @@ namespace SmartStore.Web.Controllers
         }
 
         [NonAction]
-        protected PictureModel PrepareNewsItemPictureModel(NewsItem newsItem, int? pictureId)
+        protected PictureModel PrepareNewsItemPictureModel(NewsItem newsItem, int? fileId)
         {
-            var pictureInfo = _pictureService.GetPictureInfo(pictureId);
+            var file = _mediaService.GetFileById(fileId ?? 0, MediaLoadFlags.AsNoTracking);
 
             var pictureModel = new PictureModel
             {
                 PictureId = newsItem.MediaFileId.GetValueOrDefault(),
                 Size = 512,
-                ImageUrl = _pictureService.GetUrl(pictureInfo, 512, false),
-                FullSizeImageUrl = _pictureService.GetUrl(pictureInfo, 0, false),
-                FullSizeImageWidth = pictureInfo?.Width,
-                FullSizeImageHeight = pictureInfo?.Height,
-                Title = newsItem.Title,
-                AlternateText = newsItem.Title
+                FullSizeImageWidth = file?.Dimensions.Width,
+                FullSizeImageHeight = file?.Dimensions.Height,
+                Title = file?.File?.GetLocalized(x => x.Title)?.Value.NullEmpty() ?? newsItem.Title,
+                AlternateText = file?.File?.GetLocalized(x => x.Alt)?.Value.NullEmpty() ?? newsItem.Title,
+                File = file
             };
 
             return pictureModel;

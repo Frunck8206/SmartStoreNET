@@ -46,7 +46,9 @@ namespace SmartStore.Core
 			new Version("3.1.5"),
             new Version("3.2"),
             new Version("3.2.1"),
-            new Version("3.2.2")
+            new Version("3.2.2"),
+            new Version("4.0.0"),
+            new Version("4.0.1")
         };
 
 		private const string HELP_BASEURL = "https://docs.smartstore.com/display/";
@@ -116,12 +118,12 @@ namespace SmartStore.Core
 		public static string GetUserGuideSpaceKey(string languageCode)
 		{
 			return languageCode.IsCaseInsensitiveEqual("de") 
-				? "SDDE32" 
-				: "SMNET32";
+				? "SDDE40" 
+				: "SMNET40";
 		}
 
         /// <summary>
-        /// Gets a list of SmartStore.NET versions in which breaking changes occured,
+        /// Gets a list of Smartstore versions in which breaking changes occured,
         /// which could lead to plugins malfunctioning.
         /// </summary>
         /// <remarks>

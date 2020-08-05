@@ -26,6 +26,8 @@ namespace SmartStore.Admin.Models.Rules
         [SmartResourceDisplayName("Admin.Rules.RuleSet.Fields.Scope")]
         public string ScopeName { get; set; }
 
+        public IList<ExtendedSelectListItem> Scopes { get; set; }
+
         [SmartResourceDisplayName("Admin.Rules.RuleSet.Fields.IsSubGroup")]
         public bool IsSubGroup { get; set; }
 
@@ -36,17 +38,13 @@ namespace SmartStore.Admin.Models.Rules
         public DateTime UpdatedOnUtc { get; set; }
         public DateTime? LastProcessedOnUtc { get; set; }
 
-        [SmartResourceDisplayName("Admin.Rules.RuleSet.Fields.AssignedToDiscounts")]
         public IList<AssignedToEntityModel> AssignedToDiscounts { get; set; }
-
-        [SmartResourceDisplayName("Admin.Rules.RuleSet.Fields.AssignedToShippingMethods")]
         public IList<AssignedToEntityModel> AssignedToShippingMethods { get; set; }
-
-        [SmartResourceDisplayName("Admin.Rules.RuleSet.Fields.AssignedToPaymentMethods")]
         public IList<AssignedToEntityModel> AssignedToPaymentMethods { get; set; }
+        public IList<AssignedToEntityModel> AssignedToCustomerRoles { get; set; }
+        public IList<AssignedToEntityModel> AssignedToCategories { get; set; }
 
         public IRuleExpressionGroup ExpressionGroup { get; set; }
-        public IEnumerable<RuleDescriptor> AvailableDescriptors { get; set; }
 
         public string RawRuleData { get; set; }
 
@@ -61,7 +59,9 @@ namespace SmartStore.Admin.Models.Rules
     public class RuleSetPreviewModel : RuleSetModel
     {
         public int GridPageSize { get; set; }
+        public bool IsSingleStoreMode { get; set; }
         public bool UsernamesEnabled { get; set; }
+        public bool DisplayProductPictures { get; set; }
     }
 
 

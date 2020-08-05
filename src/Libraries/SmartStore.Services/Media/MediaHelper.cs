@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Linq.Expressions;
 using SmartStore.ComponentModel;
 using SmartStore.Core;
@@ -9,9 +9,72 @@ using SmartStore.Core.Domain.Media;
 using SmartStore.Core.Infrastructure;
 
 namespace SmartStore.Services.Media
-{	
-	public static class MediaHelper
+{
+    public partial class MediaHelper
 	{
+		private readonly IFolderService _folderService;
+
+		public MediaHelper(IFolderService folderService)
+		{
+			_folderService = folderService;
+		}
+
+		public bool TokenizePath(string path, out MediaPathData data)
+		{
+			data = null;
+
+			if (path.IsEmpty())
+			{
+				return false;
+			}
+
+			var dir = Path.GetDirectoryName(path);
+			if (dir.HasValue())
+			{
+				var node = _folderService.GetNodeByPath(dir);
+				if (node != null)
+				{
+					data = new MediaPathData(node, path.Substring(dir.Length + 1));
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		public bool CheckUniqueFileName(string title, string ext, string destFileName, out string uniqueName)
+		{
+			return CheckUniqueFileName(title, ext, new HashSet<string>(new[] { destFileName }, StringComparer.CurrentCultureIgnoreCase), out uniqueName);
+		}
+
+		public bool CheckUniqueFileName(string title, string ext, HashSet<string> destFileNames, out string uniqueName)
+		{
+			uniqueName = null;
+
+			if (destFileNames.Count == 0)
+			{
+				return false;
+			}
+
+			int i = 1;
+			while (true)
+			{
+				var test = string.Concat(title, "-", i, ".", ext.TrimStart('.'));
+				if (!destFileNames.Contains(test))
+				{
+					// Found our gap
+					uniqueName = test;
+					return true;
+				}
+
+				i++;
+			}
+		}
+
+		#region Legacy (remove later)
+
+		// TODO: (mm) (mc) remove this stuff
+
 		public static void UpdateDownloadTransientStateFor<TEntity>(TEntity entity, Expression<Func<TEntity, int>> downloadIdProp, bool save = false) where TEntity : BaseEntity
 		{
 			Guard.NotNull(entity, nameof(entity));
@@ -46,17 +109,6 @@ namespace SmartStore.Services.Media
 		{
 			var rs = EngineContext.Current.Resolve<IRepository<Download>>();
 			UpdateTransientStateCore(prevDownloadId, currentDownloadId, rs, null, save);
-		}
-
-		private static Action<object> GetPictureDeleteAction()
-		{
-			Action<object> deleteAction = pic =>
-			{
-				var svc = EngineContext.Current.Resolve<IPictureService>();
-				svc.DeletePicture((MediaFile)pic);
-			};
-
-			return deleteAction;
 		}
 
 		internal static void UpdateTransientStateForEntityInternal<TEntity, TMedia>(
@@ -138,6 +190,7 @@ namespace SmartStore.Services.Media
 				rs.AutoCommitEnabled = autoCommit;
 			}
 		}
-	}
 
+        #endregion
+    }
 }

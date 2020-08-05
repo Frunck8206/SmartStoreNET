@@ -28,6 +28,7 @@ using SmartStore.Core.Plugins;
 using SmartStore.Core.Search;
 using SmartStore.Core.Search.Facets;
 using SmartStore.Core.Security;
+using SmartStore.Data.Utilities;
 using SmartStore.Services.Catalog;
 using SmartStore.Services.Common;
 using SmartStore.Services.Customers;
@@ -378,7 +379,7 @@ namespace SmartStore.Admin.Controllers
 					var originAddress = _addressService.GetAddressById(addressId) ?? new Address { CreatedOnUtc = DateTime.UtcNow };
 
 					// Update ID manually (in case we're in multi-store configuration mode it'll be set to the shared one).
-					model.ShippingOriginAddress.Id = addressId;
+					model.ShippingOriginAddress.Id = originAddress.Id == 0 ? 0 : addressId;
 					originAddress = model.ShippingOriginAddress.ToEntity(originAddress);
 
 					if (originAddress.Id > 0)
@@ -503,7 +504,7 @@ namespace SmartStore.Admin.Controllers
 					var originAddress = _addressService.GetAddressById(addressId) ?? new Address { CreatedOnUtc = DateTime.UtcNow };
 
 					// Update ID manually (in case we're in multi-store configuration mode it'll be set to the shared one).
-					model.DefaultTaxAddress.Id = addressId;
+					model.DefaultTaxAddress.Id = originAddress.Id == 0 ? 0 : addressId;
 					originAddress = model.DefaultTaxAddress.ToEntity(originAddress);
 
 					if (originAddress.Id > 0)
@@ -857,7 +858,12 @@ namespace SmartStore.Admin.Controllers
         [HttpPost, SaveSetting, FormValueRequired("save")]
         public ActionResult Media(MediaSettings mediaSettings, MediaSettingsModel model)
         {
-			mediaSettings = model.ToEntity(mediaSettings);
+            if (!ModelState.IsValid)
+            {
+                return Media(mediaSettings);
+            }
+
+            mediaSettings = model.ToEntity(mediaSettings);
 
             return NotifyAndRedirect("Media");
         }
@@ -885,8 +891,6 @@ namespace SmartStore.Admin.Controllers
 			var storeScope = this.GetActiveStoreScopeConfiguration(Services.StoreService, Services.WorkContext);
 			StoreDependingSettings.CreateViewDataObject(storeScope);
 
-			var allCustomerRoles = _customerService.GetAllCustomerRoles(true);
-
 			var customerSettings = Services.Settings.LoadSetting<CustomerSettings>(storeScope);
 			var addressSettings = Services.Settings.LoadSetting<AddressSettings>(storeScope);
 			var dateTimeSettings = Services.Settings.LoadSetting<DateTimeSettings>(storeScope);
@@ -905,7 +909,7 @@ namespace SmartStore.Admin.Controllers
             model.DateTimeSettings.AllowCustomersToSetTimeZone = dateTimeSettings.AllowCustomersToSetTimeZone;
             model.DateTimeSettings.DefaultStoreTimeZoneId = _dateTimeHelper.DefaultStoreTimeZone.Id;
 
-            foreach (TimeZoneInfo timeZone in _dateTimeHelper.GetSystemTimeZones())
+            foreach (var timeZone in _dateTimeHelper.GetSystemTimeZones())
             {
                 model.DateTimeSettings.AvailableTimeZones.Add(new SelectListItem
                 {
@@ -921,25 +925,13 @@ namespace SmartStore.Admin.Controllers
 
 			StoreDependingSettings.GetOverrideKeys(externalAuthenticationSettings, model.ExternalAuthenticationSettings, storeScope, Services.Settings, false);
 
-			model.CustomerSettings.AvailableRegisterCustomerRoles = allCustomerRoles
-				.Where(x => x.SystemName != SystemCustomerRoleNames.Registered && x.SystemName != SystemCustomerRoleNames.Guests)
-				.Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
-				.ToList();
-
 			model.PrivacySettings = privacySettings.ToModel();
 
 			StoreDependingSettings.GetOverrideKeys(privacySettings, model.PrivacySettings, storeScope, Services.Settings, false);
 
-			// Loads default value if it's empty (must be done this way as localized values can't be initial values of settings).
-			if (!privacySettings.CookieConsentBadgetext.HasValue())
-			{
-				model.PrivacySettings.CookieConsentBadgetext = Services.Localization.GetResource("CookieConsent.BadgeText");
-			}
-			
 			AddLocales(_languageService, model.Locales, (locale, languageId) =>
             {
                 locale.Salutations = addressSettings.GetLocalized(x => x.Salutations, languageId, false, false);
-				locale.CookieConsentBadgetext = privacySettings.GetLocalized(x => x.CookieConsentBadgetext, languageId, false, false);
 			});
 
 			return View(model);
@@ -949,6 +941,20 @@ namespace SmartStore.Admin.Controllers
 		[HttpPost, ValidateInput(false)]
 		public ActionResult CustomerUser(CustomerUserSettingsModel model, FormCollection form)
         {
+			var ignoreKey = $"{nameof(model.CustomerSettings)}.{nameof(model.CustomerSettings.RegisterCustomerRoleId)}";
+
+			foreach (var key in ModelState.Keys.Where(x => x.IsCaseInsensitiveEqual(ignoreKey)))
+			{
+				ModelState[key].Errors.Clear();
+			}
+
+			if (!ModelState.IsValid)
+			{
+				return CustomerUser();
+			}
+
+			ModelState.Clear();
+
 			var storeScope = this.GetActiveStoreScopeConfiguration(Services.StoreService, Services.WorkContext);
 
 			var customerSettings = Services.Settings.LoadSetting<CustomerSettings>(storeScope);
@@ -986,7 +992,6 @@ namespace SmartStore.Admin.Controllers
 			foreach (var localized in model.Locales)
 			{
 				_localizedEntityService.SaveLocalizedValue(addressSettings, x => x.Salutations, localized.Salutations, localized.LanguageId);
-				_localizedEntityService.SaveLocalizedValue(privacySettings, x => x.CookieConsentBadgetext, localized.CookieConsentBadgetext, localized.LanguageId);
 			}
 			
 			return NotifyAndRedirect("CustomerUser");

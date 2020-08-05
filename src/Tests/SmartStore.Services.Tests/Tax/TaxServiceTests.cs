@@ -146,18 +146,16 @@ namespace SmartStore.Services.Tests.Tax
         [Test]
         public void Can_do_VAT_check()
         {
-            //remove? this method requires Internet access
+            Exception ex;
 
-            string name, address;
-            Exception exception;
-
-            VatNumberStatus vatNumberStatus1 = _taxService.DoVatCheck("GB", "523 2392 69", out name, out address, out exception);
-			exception.ShouldBeNull();
+            // Check VAT of DB Vertrieb GmbH (Deutsche Bahn).
+            VatNumberStatus vatNumberStatus1 = _taxService.DoVatCheck("DE", "814160246", out var _, out var _, out ex);
+            ex.ShouldBeNull();
 			vatNumberStatus1.ShouldEqual(VatNumberStatus.Valid);
             
-            VatNumberStatus vatNumberStatus2 = _taxService.DoVatCheck("GB", "000 0000 00", out name, out address, out exception);
+            VatNumberStatus vatNumberStatus2 = _taxService.DoVatCheck("DE", "000000000", out var _, out var _, out ex);
             vatNumberStatus2.ShouldEqual(VatNumberStatus.Invalid);
-            exception.ShouldBeNull();
+            ex.ShouldBeNull();
         }
     }
 }

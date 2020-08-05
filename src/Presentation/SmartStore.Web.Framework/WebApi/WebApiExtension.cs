@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Globalization;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.Dependencies;
 using System.Web.Http.OData.Routing;
@@ -10,7 +13,7 @@ using SmartStore.Utilities;
 
 namespace SmartStore.Web.Framework.WebApi
 {
-	public static class WebApiExtension
+    public static class WebApiExtension
 	{
 		private static MethodInfo _createResponse = InitCreateResponse();
 
@@ -29,7 +32,9 @@ namespace SmartStore.Web.Framework.WebApi
 		public static HttpResponseMessage CreateResponseForEntity(this HttpRequestMessage request, object entity, int key)
 		{
 			if (entity == null)
+			{
 				return request.CreateResponse(HttpStatusCode.NotFound, WebApiGlobal.Error.EntityNotFound.FormatInvariant(key));
+			}
 
 			return request.CreateResponse(HttpStatusCode.OK, entity.GetType(), entity);
 		}
@@ -66,9 +71,9 @@ namespace SmartStore.Web.Framework.WebApi
 		{
 			return new HttpResponseException(apiController.Request.CreateErrorResponse(HttpStatusCode.NotFound, message));
 		}
-		public static HttpResponseException ExceptionInternalServerError(this ApiController apiController, Exception exc)
+		public static HttpResponseException ExceptionInternalServerError(this ApiController apiController, Exception ex)
 		{
-			return new HttpResponseException(apiController.Request.CreateErrorResponse(HttpStatusCode.InternalServerError, exc));
+			return new HttpResponseException(apiController.Request.CreateErrorResponse(HttpStatusCode.InternalServerError, ex));
 		}
 
 		/// <summary>
@@ -77,17 +82,69 @@ namespace SmartStore.Web.Framework.WebApi
 		/// <param name="process">Action for entity processing.</param>
 		public static void ProcessEntity(this ApiController apiController, Action process)
 		{
+			if (!apiController.ModelState.IsValid)
+			{
+				throw apiController.ExceptionInvalidModelState();
+			}
+
 			try
 			{
 				process();
 			}
-			catch (Exception exception)
+			catch (HttpResponseException hrEx)
 			{
-				throw apiController.ExceptionUnprocessableEntity(exception.Message);
+				throw hrEx;
+			}
+			catch (Exception ex)
+			{
+				throw apiController.ExceptionUnprocessableEntity(ex.Message);
 			}
 		}
 
-		public static bool GetNormalizedKey(this ODataPath odataPath, int segmentIndex, out int key)
+		public static async Task ProcessEntityAsync(this ApiController apiController, Func<Task> process)
+		{
+			if (!apiController.ModelState.IsValid)
+			{
+				throw apiController.ExceptionInvalidModelState();
+			}
+
+			try
+			{
+				await process();
+			}
+			catch (HttpResponseException hrEx)
+			{
+				throw hrEx;
+			}
+			catch (Exception ex)
+			{
+				throw apiController.ExceptionUnprocessableEntity(ex.Message);
+			}
+		}
+
+		/// <summary>
+		/// Gets a query string value from API request URL.
+		/// </summary>
+		/// <typeparam name="T">Value type.</typeparam>
+		/// <param name="apiController">API controller.</param>
+		/// <param name="name">Name of the query string value.</param>
+		/// <param name="defaultValue">Default value.</param>
+		/// <returns>Query string value.</returns>
+		public static T GetQueryStringValue<T>(this ApiController apiController, string name, T defaultValue = default)
+        {
+            Guard.NotEmpty(name, nameof(name));
+
+            var queries = apiController?.Request?.RequestUri?.ParseQueryString();
+
+            if (queries?.AllKeys?.Contains(name) ?? false)
+            {
+                return queries[name].Convert(defaultValue, CultureInfo.InvariantCulture);
+            }
+
+            return defaultValue;
+        }
+
+        public static bool GetNormalizedKey(this ODataPath odataPath, int segmentIndex, out int key)
 		{
 			if (odataPath.Segments.Count > segmentIndex)
 			{
@@ -121,7 +178,9 @@ namespace SmartStore.Web.Framework.WebApi
 			try
 			{
 				foreach (var file in provider.FileData)
+				{
 					FileSystemHelper.DeleteFile(file.LocalFileName);
+				}
 			}
 			catch { }
 		}

@@ -4,24 +4,25 @@
 @using SmartStore.Core;
 
 @{
-	var currentCustomer = this.WorkContext.CurrentCustomer;
-	var currentLanguage = this.WorkContext.WorkingLanguage;
-	var userName = (string)ViewBag.UserName;
-	var stores = ((IList<Store>)ViewBag.Stores) ?? new List<Store>();
-	string currentLanguageCode = currentLanguage.UniqueSeoCode.EmptyNull().ToLower();
-	string communityUrl = (currentLanguageCode == "de" ?
-		"http://community.smartstore.com" :
-		"http://community.smartstore.com/index.php?/&k=880ea6a14ea49e853634fbdc5015a024&setlanguage=1&cal_id=&langid=1");
-	string docsUrl = GenerateHelpUrl("");
-	var checkUpdateResult = ViewBag.CheckUpdateResult as CheckUpdateResult;
+    var currentCustomer = this.WorkContext.CurrentCustomer;
+    var currentLanguage = this.WorkContext.WorkingLanguage;
+    var userName = (string)ViewBag.UserName;
+    var stores = ((IList<Store>)ViewBag.Stores) ?? new List<Store>();
+    string currentLanguageCode = currentLanguage.UniqueSeoCode.EmptyNull().ToLower();
+    string communityUrl = (currentLanguageCode == "de" ?
+        "http://community.smartstore.com" :
+        "http://community.smartstore.com/index.php?/&k=880ea6a14ea49e853634fbdc5015a024&setlanguage=1&cal_id=&langid=1");
+    string docsUrl = GenerateHelpUrl("");
+    var checkUpdateResult = ViewBag.CheckUpdateResult as CheckUpdateResult;
+
+    Html.AddLinkPart("preload", Url.Content("~/Administration/Content/images/smartstore.svg"), new { @as = "image" });
 }
 
-<nav id="navbar" class="navbar navbar-dark navbar-expand">
+<nav id="navbar" class="navbar navbar-slide navbar-dark navbar-expand">
     
     <a class="navbar-brand mx-0 mr-3" href="@Url.Action("Index", "Home", new { area = "Admin" })">
-        @*<img src="~/Administration/Content/images/smnet2.png" alt="smartstore.NET" />*@
-		<img class="navbar-img d-none d-lg-block" src="~/Administration/Content/images/smartstore.svg" alt="smartstore.NET" />
-		<img class="navbar-img d-lg-none" src="~/Administration/Content/images/smartstore-icon.svg" alt="smartstore.NET" />
+		<img class="navbar-img d-none d-lg-block" src="~/Administration/Content/images/smartstore.svg" alt="Smartstore" />
+		<img class="navbar-img d-lg-none" src="~/Administration/Content/images/smartstore-icon.svg" alt="Smartstore" />
 	</a>
 
 	<div id="navbar-menu" class="collapse navbar-collapse mr-auto">

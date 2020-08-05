@@ -8,7 +8,6 @@ using SmartStore.Core.Domain.Catalog;
 using SmartStore.Core.Domain.Customers;
 using SmartStore.Core.Domain.Media;
 using SmartStore.Core.Security;
-using SmartStore.Services;
 using SmartStore.Services.Catalog;
 using SmartStore.Services.Common;
 using SmartStore.Services.Localization;
@@ -62,7 +61,7 @@ namespace SmartStore.Web.Controllers
 			IAclService aclService,
 			IStoreMappingService storeMappingService,
 			ICatalogSearchService catalogSearchService,
-			MediaSettings mediaSettings, 
+            MediaSettings mediaSettings, 
 			CatalogSettings catalogSettings,
             CatalogHelper helper,
 			IBreadcrumb breadcrumb)
@@ -363,10 +362,18 @@ namespace SmartStore.Web.Controllers
 
             // TODO: result isn't cached, DO IT!
             var manufacturers = _manufacturerService.GetAllManufacturers(null, Services.StoreContext.CurrentStore.Id);
+
+            var fileIds = manufacturers
+                .Select(x => x.MediaFileId ?? 0)
+                .Where(x => x != 0)
+                .Distinct()
+                .ToArray();
+            var files = Services.MediaService.GetFilesByIds(fileIds).ToDictionarySafe(x => x.Id);
+
             foreach (var manufacturer in manufacturers)
             {
                 var manuModel = manufacturer.ToModel();
-                manuModel.PictureModel = _helper.PrepareManufacturerPictureModel(manufacturer, manuModel.Name);
+                manuModel.PictureModel = _helper.PrepareManufacturerPictureModel(manufacturer, manuModel.Name, files);
                 model.Add(manuModel);
             }
 
@@ -401,13 +408,13 @@ namespace SmartStore.Web.Controllers
 		{
 			if (!_catalogSettings.ShowBestsellersOnHomepage || _catalogSettings.NumberOfBestsellersOnHomepage == 0)
 			{
-				return Content("");
+				return new EmptyResult();
 			}
 
 			// Load report from cache
 			var report = Services.Cache.Get(string.Format(ModelCacheEventConsumer.HOMEPAGE_BESTSELLERS_IDS_KEY, Services.StoreContext.CurrentStore.Id), () => 
 			{
-				return _orderReportService.BestSellersReport(Services.StoreContext.CurrentStore.Id, null, null, null, null, null, 0, _catalogSettings.NumberOfBestsellersOnHomepage);
+				return _orderReportService.BestSellersReport(Services.StoreContext.CurrentStore.Id, null, null, null, null, null, 0, 0, _catalogSettings.NumberOfBestsellersOnHomepage);
 			});
 
 			// Load products
@@ -505,16 +512,22 @@ namespace SmartStore.Web.Controllers
 		public ActionResult ProductsByTag(int productTagId, CatalogSearchQuery query)
 		{
 			var productTag = _productTagService.GetProductTagById(productTagId);
-			if (productTag == null)
-				return HttpNotFound();
+            if (productTag == null)
+            {
+                return HttpNotFound();
+            }
 
-			var model = new ProductsByTagModel()
+            if (!productTag.Published && !Services.Permissions.Authorize(Permissions.Catalog.Product.Read))
+            {
+                return HttpNotFound();
+            }
+
+            var model = new ProductsByTagModel
 			{
 				Id = productTag.Id,
 				TagName = productTag.GetLocalized(y => y.Name)
 			};
 
-			// Products
 			query.WithProductTagIds(new int[] { productTagId });
 
 			var searchResult = _catalogSearchService.Search(query);
@@ -523,7 +536,7 @@ namespace SmartStore.Web.Controllers
 			var mappingSettings = _helper.GetBestFitProductSummaryMappingSettings(query.GetViewMode());
 			model.Products = _helper.MapProductSummaryModel(searchResult.Hits, mappingSettings);
 
-			// Prepare paging/sorting/mode stuff
+			// Prepare paging/sorting/mode stuff.
 			_helper.MapListActions(model.Products, null, _catalogSettings.DefaultPageSizeOptions);
 
 			return View(model);
@@ -649,13 +662,15 @@ namespace SmartStore.Web.Controllers
 				.Slice(0, _catalogSettings.RecentlyAddedProductsNumber);
 
 			var result = _catalogSearchService.Search(query);
-
 			var storeUrl = Services.StoreService.GetHost(Services.StoreContext.CurrentStore);
 
-			// Prefecthing
-			var allPictureInfos = Services.PictureService.GetPictureInfos(result.Hits);
-
-			//_mediaSettings.ProductDetailsPictureSize, false, storeUrl
+			// Prefetching.
+            var fileIds = result.Hits
+                .Select(x => x.MainPictureId ?? 0)
+                .Where(x => x != 0)
+                .Distinct()
+                .ToArray();
+            var files = Services.MediaService.GetFilesByIds(fileIds).ToDictionarySafe(x => x.Id);
 
 			foreach (var product in result.Hits)
 			{
@@ -671,12 +686,12 @@ namespace SmartStore.Web.Controllers
 
 					try
 					{
-						// we add only the first picture
-						var picture = Services.PictureService.GetPictureById(product.MainPictureId.GetValueOrDefault());
-						if (picture != null)
-						{
-							feed.AddEnclosure(item, picture, Services.PictureService.GetUrl(picture, _mediaSettings.ProductDetailsPictureSize, FallbackPictureType.NoFallback, storeUrl));
-						}
+                        // We add only the first media file.
+                        if (files.TryGetValue(product.MainPictureId ?? 0, out var file))
+                        {
+                            var url = Services.MediaService.GetUrl(file, _mediaSettings.ProductDetailsPictureSize, storeUrl, false);
+                            feed.AddEnclosure(item, file.File, url);
+                        }
 					}
 					catch { }
 

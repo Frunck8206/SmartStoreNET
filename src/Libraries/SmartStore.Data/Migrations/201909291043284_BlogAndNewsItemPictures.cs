@@ -4,7 +4,7 @@ namespace SmartStore.Data.Migrations
     using System.Data.Entity.Migrations;
     using SmartStore.Data.Setup;
 
-    public partial class BlogAndNewsItemPictures : DbMigration, IDataSeeder<SmartObjectContext>
+    public partial class BlogAndNewsItemPictures : DbMigration, ILocaleResourcesProvider, IDataSeeder<SmartObjectContext>
     {
         public override void Up()
         {   
@@ -13,7 +13,7 @@ namespace SmartStore.Data.Migrations
             AddColumn("dbo.BlogPost", "SectionBg", c => c.String(maxLength: 100));
             AddColumn("dbo.BlogPost", "Intro", c => c.String());
             AddColumn("dbo.BlogPost", "DisplayTagsInPreview", c => c.Boolean(nullable: false));
-            AddColumn("dbo.BlogPost", "IsPublished", c => c.Boolean(nullable: false));
+            AddColumn("dbo.BlogPost", "IsPublished", c => c.Boolean(nullable: false, defaultValue: true));
             AddColumn("dbo.BlogPost", "PreviewDisplayType", c => c.Int(nullable: false));
             AddColumn("dbo.News", "PictureId", c => c.Int());
             AddColumn("dbo.News", "PreviewPictureId", c => c.Int());

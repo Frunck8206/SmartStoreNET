@@ -12,7 +12,7 @@ using SmartStore.Web.Framework.Modelling;
 namespace SmartStore.Admin.Models.Directory
 {
     [Validator(typeof(CountryValidator))]
-    public class CountryModel : EntityModelBase, ILocalizedModel<CountryLocalizedModel>
+    public class CountryModel : TabbableModel, ILocalizedModel<CountryLocalizedModel>
     {
         public CountryModel()
         {
@@ -43,6 +43,9 @@ namespace SmartStore.Admin.Models.Directory
         [SmartResourceDisplayName("Admin.Configuration.Countries.Fields.SubjectToVat")]
         public bool SubjectToVat { get; set; }
 
+        [SmartResourceDisplayName("Admin.Configuration.Countries.Fields.DisplayCookieManager")]
+        public bool DisplayCookieManager { get; set; }
+
         [SmartResourceDisplayName("Admin.Configuration.Countries.Fields.Published")]
         public bool Published { get; set; }
 
@@ -55,7 +58,11 @@ namespace SmartStore.Admin.Models.Directory
 		[SmartResourceDisplayName("Admin.Configuration.Countries.Fields.AddressFormat")]
 		public string AddressFormat { get; set; }
 
-		public IList<CountryLocalizedModel> Locales { get; set; }
+        [SmartResourceDisplayName("Admin.Configuration.Countries.Fields.DefaultCurrency")]
+        public int? DefaultCurrencyId { get; set; }
+        public IList<SelectListItem> AllCurrencies { get; set; }
+
+        public IList<CountryLocalizedModel> Locales { get; set; }
 
         // Store mapping.
         [UIHint("Stores")]

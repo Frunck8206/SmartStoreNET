@@ -4,6 +4,8 @@ using System.Data.Entity;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using System.Xml.Serialization;
@@ -288,7 +290,7 @@ namespace SmartStore.Data.Utilities
 						{
 							// Create subfolder "Storage/0000"
 							subfolder = fs.Combine("Storage", dirName);
-							fs.TryCreateFolder(subfolder);
+							fs.CreateFolder(subfolder);
 							subfolders[dirName] = subfolder;
 						}
 
@@ -343,131 +345,29 @@ namespace SmartStore.Data.Utilities
 			return ctx.SaveChanges();
 		}
 
-		#endregion
+        #endregion
 
-		#region MoveCustomerFields (V3.2)
-
-		/// <summary>
-		/// Moves several customer fields saved as generic attributes to customer entity (Title, FirstName, LastName, BirthDate, Company, CustomerNumber)
-		/// </summary>
-		/// <param name="context">Database context (must be <see cref="SmartObjectContext"/>)</param>
-		/// <returns>The total count of fixed and updated customer entities</returns>
-		public static int MoveCustomerFields(IDbContext context)
-		{
-			var ctx = context as SmartObjectContext;
-			if (ctx == null)
-				throw new ArgumentException("Passed context must be an instance of type '{0}'.".FormatInvariant(typeof(SmartObjectContext)), nameof(context));
-
-			// We delete attrs only if the WHOLE migration succeeded
-			var attrIdsToDelete = new List<int>(1000);
-			var gaTable = context.Set<GenericAttribute>();
-			var candidates = new[] { "Title", "FirstName", "LastName", "Company", "CustomerNumber", "DateOfBirth" };
-
-			var query = gaTable
-				.AsNoTracking()
-				.Where(x => x.KeyGroup == "Customer" && candidates.Contains(x.Key))
-				.OrderBy(x => x.Id);
-
-			int numUpdated = 0;
-
-			using (var scope = new DbContextScope(ctx: context, validateOnSave: false, hooksEnabled: false, autoCommit: false))
-			{
-				for (var pageIndex = 0; pageIndex < 9999999; ++pageIndex)
-				{
-					var attrs = new PagedList<GenericAttribute>(query, pageIndex, 250);
-
-					var customerIds = attrs.Select(a => a.EntityId).Distinct().ToArray();
-					var customers = context.Set<Customer>()
-						.Where(x => customerIds.Contains(x.Id))
-						.ToDictionary(x => x.Id);
-
-					// Move attrs one by one to customer
-					foreach (var attr in attrs)
-					{
-						var customer = customers.Get(attr.EntityId);
-						if (customer == null)
-							continue;
-
-						switch (attr.Key)
-						{
-							case "Title":
-								customer.Title = attr.Value?.Truncate(100);
-								break;
-							case "FirstName":
-								customer.FirstName = attr.Value?.Truncate(225);
-								break;
-							case "LastName":
-								customer.LastName = attr.Value?.Truncate(225);
-								break;
-							case "Company":
-								customer.Company = attr.Value?.Truncate(255);
-								break;
-							case "CustomerNumber":
-								customer.CustomerNumber = attr.Value?.Truncate(100);
-								break;
-							case "DateOfBirth":
-								customer.BirthDate = attr.Value?.Convert<DateTime?>();
-								break;
-						}
-
-						// Update FullName
-						var parts = new[] { customer.Title, customer.FirstName, customer.LastName };
-						customer.FullName = string.Join(" ", parts.Where(x => x.HasValue())).NullEmpty();
-
-						attrIdsToDelete.Add(attr.Id);
-					}
-
-					// Save batch
-					numUpdated += scope.Commit();
-
-					// Breathe
-					context.DetachAll();
-
-					if (!attrs.HasNextPage)
-						break;
-				}
-
-				// Everything worked out, now delete all orpahned attributes
-				if (attrIdsToDelete.Count > 0)
-				{
-					try
-					{
-						// Don't rollback migration when this fails
-						var stubs = attrIdsToDelete.Select(x => new GenericAttribute { Id = x }).ToList();
-						foreach (var chunk in stubs.Slice(500))
-						{
-							chunk.Each(x => gaTable.Attach(x));
-							gaTable.RemoveRange(chunk);
-							scope.Commit();
-						}
-					}
-					catch (Exception ex)
-					{
-						var msg = ex.Message;
-					}
-				}
-			}
-
-			return numUpdated;
-		}
-
+        #region MoveCustomerFields (V3.2)
 
         /// <summary>
-        /// Moves several customer fields saved as generic attributes to customer entity 
-        /// (Gender, ZipPostalCode, VatNumberStatusId, TimeZoneId, TaxDisplayTypeId, CountryId, CurrencyId, LanguageId, LastForumVisit, LastUserAgent)
+        /// Moves several customer fields saved as generic attributes to customer entity (Title, FirstName, LastName, BirthDate, Company, CustomerNumber)
         /// </summary>
         /// <param name="context">Database context (must be <see cref="SmartObjectContext"/>)</param>
         /// <returns>The total count of fixed and updated customer entities</returns>
-        public static int MoveFurtherCustomerFields(IDbContext context)
+        public static int MoveCustomerFields(IDbContext context, Action<Customer, GenericAttribute> updater, params string[] candidates)
         {
-            var ctx = context as SmartObjectContext;
-            if (ctx == null)
+            Guard.NotNull(updater, nameof(updater));
+            
+            if (!(context is SmartObjectContext ctx))
                 throw new ArgumentException("Passed context must be an instance of type '{0}'.".FormatInvariant(typeof(SmartObjectContext)), nameof(context));
+
+            if (candidates.Length == 0)
+                return 0;
 
             // We delete attrs only if the WHOLE migration succeeded
             var attrIdsToDelete = new List<int>(1000);
             var gaTable = context.Set<GenericAttribute>();
-            var candidates = new[] { "Gender", "VatNumberStatusId", "TimeZoneId", "TaxDisplayTypeId", "LastForumVisit", "LastUserAgent", "LastUserDeviceType" };
+            //var candidates = new[] { "Title", "FirstName", "LastName", "Company", "CustomerNumber", "DateOfBirth" };
 
             var query = gaTable
                 .AsNoTracking()
@@ -494,31 +394,7 @@ namespace SmartStore.Data.Utilities
                         if (customer == null)
                             continue;
 
-                        switch (attr.Key)
-                        {
-                            case "Gender":
-                                customer.Gender = attr.Value?.Truncate(100);
-                                break;
-                            case "VatNumberStatusId":
-                                customer.VatNumberStatusId = attr.Value.Convert<int>();
-                                break;
-                            case "TimeZoneId":
-                                customer.TimeZoneId = attr.Value?.Truncate(255);
-                                break;
-                            case "TaxDisplayTypeId":
-                                customer.TaxDisplayTypeId = attr.Value.Convert<int>();
-                                break;
-                            case "LastForumVisit":
-                                customer.LastForumVisit = attr.Value.Convert<DateTime>();
-                                break;
-                            case "LastUserAgent":
-                                customer.LastUserAgent = attr.Value.Convert<string>();
-                                break;
-                            case "LastUserDeviceType":
-                                // TODO: split
-                                customer.LastUserDeviceType = attr.Value.Convert<string>();
-                                break;
-                        }
+                        updater(customer, attr);
 
                         attrIdsToDelete.Add(attr.Id);
                     }
@@ -557,6 +433,84 @@ namespace SmartStore.Data.Utilities
             return numUpdated;
         }
 
+        public static int DeleteGuestCustomerGenericAttributes(IDbContext context, TimeSpan olderThan)
+        {
+            if (!(context is SmartObjectContext ctx))
+            {
+                throw new ArgumentException("Passed context must be an instance of type '{0}'.".FormatInvariant(typeof(SmartObjectContext)), nameof(context));
+            }
+
+            int numTotalDeleted = 0;
+            var maxDate = DateTime.UtcNow - olderThan;
+
+            var sql = @"
+DELETE TOP(50000) [g]
+  FROM [dbo].[GenericAttribute] AS [g]
+  LEFT OUTER JOIN [dbo].[Customer] AS [c] ON c.Id = g.EntityId
+  LEFT OUTER JOIN [dbo].[Order] AS [o] ON c.Id = o.CustomerId
+  LEFT OUTER JOIN [dbo].[CustomerContent] AS [cc] ON c.Id = cc.CustomerId
+  LEFT OUTER JOIN [dbo].[Forums_PrivateMessage] AS [pm] ON c.Id = pm.ToCustomerId
+  LEFT OUTER JOIN [dbo].[Forums_Post] AS [fp] ON c.Id = fp.CustomerId
+  LEFT OUTER JOIN [dbo].[Forums_Topic] AS [ft] ON c.Id = ft.CustomerId
+  WHERE g.KeyGroup = 'Customer' AND c.Username IS Null AND c.Email IS NULL AND c.IsSystemAccount = 0 AND c.LastActivityDateUtc < @p0
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[ShoppingCartItem] AS [sci] WHERE c.Id = sci.CustomerId ))  
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[Order] AS [o1] WHERE c.Id = o1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[CustomerContent] AS [cc1] WHERE c.Id = cc1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[Forums_PrivateMessage] AS [pm1] WHERE c.Id = pm1.ToCustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[Forums_Post] AS [fp1] WHERE c.Id = fp1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS [C1] FROM [dbo].[Forums_Topic] AS [ft1] WHERE c.Id = ft1.CustomerId ))
+";
+
+            while (true)
+            {
+                var numDeleted = ctx.Execute(sql, maxDate);
+                if (numDeleted == 0)
+                    break;
+
+                numTotalDeleted += numDeleted;
+            }
+
+            return numTotalDeleted;
+        }
+
+        public static int DeleteGuestCustomers(IDbContext context, TimeSpan olderThan)
+        {
+            if (!(context is SmartObjectContext ctx))
+            {
+                throw new ArgumentException("Passed context must be an instance of type '{0}'.".FormatInvariant(typeof(SmartObjectContext)), nameof(context));
+            }
+
+            int numTotalDeleted = 0;
+            var maxDate = DateTime.UtcNow - olderThan;
+
+            var sql = @"
+DELETE TOP(20000) [c]
+  FROM [dbo].[Customer] AS [c]
+  LEFT OUTER JOIN [dbo].[Order] AS [o] ON c.Id = o.CustomerId
+  LEFT OUTER JOIN [dbo].[CustomerContent] AS [cc] ON c.Id = cc.CustomerId
+  LEFT OUTER JOIN [dbo].[Forums_PrivateMessage] AS [pm] ON c.Id = pm.ToCustomerId
+  LEFT OUTER JOIN [dbo].[Forums_Post] AS [fp] ON c.Id = fp.CustomerId
+  LEFT OUTER JOIN [dbo].[Forums_Topic] AS [ft] ON c.Id = ft.CustomerId
+  WHERE c.Username IS Null AND c.Email IS NULL AND c.IsSystemAccount = 0 AND c.LastActivityDateUtc < @p0
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[ShoppingCartItem] AS [sci] WHERE c.Id = sci.CustomerId ))  
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[Order] AS [o1] WHERE c.Id = o1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[CustomerContent] AS [cc1] WHERE c.Id = cc1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[Forums_PrivateMessage] AS [pm1] WHERE c.Id = pm1.ToCustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[Forums_Post] AS [fp1] WHERE c.Id = fp1.CustomerId ))
+	AND (NOT EXISTS (SELECT 1 AS x FROM [dbo].[Forums_Topic] AS [ft1] WHERE c.Id = ft1.CustomerId ))
+";
+
+            while (true)
+            {
+                var numDeleted = ctx.Execute(sql, maxDate);
+                if (numDeleted == 0)
+                    break;
+
+                numTotalDeleted += numDeleted;
+            }
+
+            return numTotalDeleted;
+        }
 
         #endregion
 
@@ -944,11 +898,20 @@ namespace SmartStore.Data.Utilities
             }
 
             var mappingSet = ctx.Set<PermissionRoleMapping>();
-            var permissionSet = ctx.Set<PermissionRecord>();
-            var allPermissions = permissionSet.ToList();
             var oldPermissions = GetOldPermissions();
-            var allRoles = ctx.Set<CustomerRole>().ToList();
-            var adminRole = allRoles.FirstOrDefault(x => x.SystemName.IsCaseInsensitiveEqual("Administrators"));
+
+            var allRoleIds = ctx.Set<CustomerRole>()
+                .AsNoTracking()
+                .Where(x => !string.IsNullOrEmpty(x.SystemName))
+                .Select(x => new { x.Id, x.SystemName })
+                .ToList()
+                .ToDictionarySafe(x => x.SystemName, x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+            allRoleIds.TryGetValue(SystemCustomerRoleNames.Administrators, out var adminRoleId);
+            allRoleIds.TryGetValue(SystemCustomerRoleNames.ForumModerators, out var forumModRoleId);
+            allRoleIds.TryGetValue(SystemCustomerRoleNames.Registered, out var registeredRoleId);
+            allRoleIds.TryGetValue(SystemCustomerRoleNames.Guests, out var guestRoleId);
+            allRoleIds.Clear();
 
             // Mapping has no entity and no navigation property -> use SQL.
             var oldMappings = context.SqlQuery<OldPermissionRoleMapping>("select * from [dbo].[PermissionRecord_Role_Mapping]")
@@ -956,6 +919,11 @@ namespace SmartStore.Data.Utilities
                 .ToMultimap(x => x.PermissionRecord_Id, x => x.CustomerRole_Id);
 
             var permissionToRoles = new Multimap<string, int>(StringComparer.OrdinalIgnoreCase);
+            var allPermissions = ctx.Set<PermissionRecord>()
+                .AsNoTracking()
+                .Select(x => new { x.Id, x.SystemName })
+                .ToList();
+
             foreach (var permission in allPermissions)
             {
                 var roleIds = oldMappings.ContainsKey(permission.Id)
@@ -964,26 +932,13 @@ namespace SmartStore.Data.Utilities
 
                 permissionToRoles.AddRange(permission.SystemName, roleIds);
             }
+            allPermissions.Clear();
 
             using (var scope = new DbContextScope(ctx: context, validateOnSave: false, hooksEnabled: false, autoCommit: false))
             {
-                // Name and category property cannot be null, exist in database, but not in the domain model -> use SQL.
-                var insertSql = "Insert Into PermissionRecord (SystemName, Name, Category) Values({0}, {1}, {2})";
                 var permissionSystemNames = PermissionHelper.GetPermissions(typeof(Permissions));
 
-                // Delete existing granular permissions to ensure correct order in tree.
-                permissionSet.RemoveRange(permissionSet.Where(x => permissionSystemNames.Contains(x.SystemName)).ToList());
-                scope.Commit();
-
-                // Insert new granular permissions.
-                foreach (var permissionName in permissionSystemNames)
-                {
-                    ctx.Database.ExecuteSqlCommand(insertSql, permissionName, string.Empty, string.Empty);
-                }
-                
-                var newPermissions = permissionSet.Where(x => permissionSystemNames.Contains(x.SystemName))
-                    .ToList()
-                    .ToDictionarySafe(x => x.SystemName, x => x);
+                var newPermissions = InsertPermissions(scope, permissionSystemNames);
 
                 // Migrate mappings of standard permissions (whether the new permission is granted).
                 foreach (var kvp in oldPermissions)
@@ -997,20 +952,19 @@ namespace SmartStore.Data.Utilities
                 scope.Commit();
 
                 // Add mappings for new permissions.
-                AllowForRole(adminRole,
+                AllowForRole(adminRoleId,
                     newPermissions[Permissions.Cart.Read],
                     newPermissions[Permissions.System.Rule.Self]);
 
                 // Add mappings originally added by old migrations.
-                // We had to remove these migration statementent again because the table does not yet exist at this time.
-                AllowForRole(adminRole,
+                // We had to remove these migration statements again because the table does not yet exist at this time.
+                AllowForRole(adminRoleId,
                     newPermissions[Permissions.Configuration.Export.Self],
                     newPermissions[Permissions.Configuration.Import.Self],
                     newPermissions[Permissions.System.UrlRecord.Self],
                     newPermissions[Permissions.Cms.Menu.Self]);
 
                 scope.Commit();
-                newPermissions.Clear();
 
                 // Migrate known plugin permissions.
                 var pluginPermissionNames = new Dictionary<string, string>
@@ -1028,6 +982,7 @@ namespace SmartStore.Data.Utilities
                     { "ManageDlm", "SmartStore.Dlm.Security.DlmPermissions, SmartStore.Dlm" }
                 };
 
+                // Get new plugin permission names.
                 var allPluginPermissionNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var kvp in pluginPermissionNames)
                 {
@@ -1050,32 +1005,69 @@ namespace SmartStore.Data.Utilities
                     }
                 }
 
-                // Delete existing granular permissions to ensure correct order in tree.
-                permissionSet.RemoveRange(permissionSet.Where(x => allPluginPermissionNames.Contains(x.SystemName)).ToList());
-                scope.Commit();
+                newPermissions.Clear();
+                newPermissions = InsertPermissions(scope, allPluginPermissionNames);
 
-                // Insert new granular permissions.
-                foreach (var permissionName in allPluginPermissionNames)
+                // Add PermissionRoleMapping for old plugin permissions.
+                PermissionRecord pr;
+                if (newPermissions.TryGetValue("debitoor", out pr))
                 {
-                    ctx.Database.ExecuteSqlCommand(insertSql, permissionName, string.Empty, string.Empty);
+                    Allow("ManageDebitoor", pr);
+                }
+                if (newPermissions.TryGetValue("bizimporter", out pr))
+                {
+                    Allow("AccessImportBiz", pr);
+                }
+                if (newPermissions.TryGetValue("shopconnector", out pr))
+                {
+                    Allow("ManageShopConnector", pr);
+                }
+                if (newPermissions.TryGetValue("newsimporter", out pr))
+                {
+                    Allow("ManageNewsImporter", pr);
+                }
+                if (newPermissions.TryGetValue("webapi", out pr))
+                {
+                    Allow("ManageWebApi", pr);
+                }
+                if (newPermissions.TryGetValue("megasearch", out pr))
+                {
+                    Allow("ManageMegaSearch", pr);
+                }
+                if (newPermissions.TryGetValue("erpconnector", out pr))
+                {
+                    Allow("ManageErpConnector", pr);
+                }
+                if (newPermissions.TryGetValue("powerbi", out pr))
+                {
+                    Allow("ManagePowerBi", pr);
+                }
+                if (newPermissions.TryGetValue("wallet", out pr))
+                {
+                    Allow("ManageWallet", pr);
+                }
+                if (newPermissions.TryGetValue("pagebuilder", out pr))
+                {
+                    Allow("ManageStories", pr);
+                }
+                if (newPermissions.TryGetValue("dlm", out pr))
+                {
+                    Allow("ManageDlm", pr);
                 }
 
-                newPermissions = permissionSet.Where(x => allPluginPermissionNames.Contains(x.SystemName))
-                    .ToList()
-                    .ToDictionarySafe(x => x.SystemName, x => x);
-
-                PermissionRecord pr;
-                if (newPermissions.TryGetValue("debitoor", out pr)) Allow("ManageDebitoor", pr);
-                if (newPermissions.TryGetValue("bizimporter", out pr)) Allow("AccessImportBiz", pr);
-                if (newPermissions.TryGetValue("shopconnector", out pr)) Allow("ManageShopConnector", pr);
-                if (newPermissions.TryGetValue("newsimporter", out pr)) Allow("ManageNewsImporter", pr);
-                if (newPermissions.TryGetValue("webapi", out pr)) Allow("ManageWebApi", pr);
-                if (newPermissions.TryGetValue("megasearch", out pr)) Allow("ManageMegaSearch", pr);
-                if (newPermissions.TryGetValue("erpconnector", out pr)) Allow("ManageErpConnector", pr);
-                if (newPermissions.TryGetValue("powerbi", out pr)) Allow("ManagePowerBi", pr);
-                if (newPermissions.TryGetValue("wallet", out pr)) Allow("ManageWallet", pr);
-                if (newPermissions.TryGetValue("pagebuilder", out pr)) Allow("ManageStories", pr);
-                if (newPermissions.TryGetValue("dlm", out pr)) Allow("ManageDlm", pr);
+                // Add PermissionRoleMapping for default plugin permissions.
+                if (newPermissions.TryGetValue("pagebuilder.displaystory", out pr))
+                {
+                    AllowForRole(forumModRoleId, pr);
+                    AllowForRole(guestRoleId, pr);
+                    AllowForRole(registeredRoleId, pr);
+                }
+                if (newPermissions.TryGetValue("contentslider.displayslider", out pr))
+                {
+                    AllowForRole(forumModRoleId, pr);
+                    AllowForRole(guestRoleId, pr);
+                    AllowForRole(registeredRoleId, pr);
+                }
 
                 scope.Commit();
 
@@ -1123,17 +1115,17 @@ namespace SmartStore.Data.Utilities
                 }
             }
 
-            void AllowForRole(CustomerRole role, params PermissionRecord[] permissions)
+            void AllowForRole(int roleId, params PermissionRecord[] permissions)
             {
                 foreach (var permission in permissions)
                 {
-                    if (!mappingSet.Any(x => x.PermissionRecordId == permission.Id && x.CustomerRoleId == role.Id))
+                    if (!mappingSet.Any(x => x.PermissionRecordId == permission.Id && x.CustomerRoleId == roleId))
                     {
                         mappingSet.Add(new PermissionRoleMapping
                         {
                             Allow = true,
                             PermissionRecordId = permission.Id,
-                            CustomerRoleId = role.Id
+                            CustomerRoleId = roleId
                         });
                     }
                 }
@@ -1192,6 +1184,44 @@ namespace SmartStore.Data.Utilities
                 map.Add("PublicStoreAllowNavigation", Permissions.System.AccessShop);
 
                 return map;
+            }
+
+            Dictionary<string, PermissionRecord> InsertPermissions(DbContextScope scope, IEnumerable<string> systemNames)
+            {
+                var newPermissions = new Dictionary<string, PermissionRecord>();
+                var newPermissionSql = "Select * From [dbo].[PermissionRecord] Where [Name] = '' And [Category] = ''";
+
+                // Delete existing granular permissions to ensure correct order in tree.
+                // Maybe this step is not required anymore but doesn't hurt.
+                var existingPermissions = ctx.SqlQuery<PermissionRecord>(newPermissionSql);
+                foreach (var permission in existingPermissions)
+                {
+                    if (systemNames.Contains(permission.SystemName))
+                    {
+                        ctx.Database.ExecuteSqlCommand("Delete From [dbo].[PermissionRecord] Where [Id] = {0}", permission.Id);
+                    }
+                }
+
+                // Insert new granular permissions.
+                // Name and category property cannot be null, exist in database, but not in the domain model -> use SQL.
+                foreach (var name in systemNames)
+                {
+                    ctx.Database.ExecuteSqlCommand("Insert Into PermissionRecord (SystemName, Name, Category) Values({0}, {1}, {2})",
+                        name, string.Empty, string.Empty);
+                }
+
+                // Now load new permissions.
+                var permissions = ctx.SqlQuery<PermissionRecord>(newPermissionSql);
+                foreach (var permission in permissions)
+                {
+                    if (systemNames.Contains(permission.SystemName))
+                    {
+                        // It's a new granular permission.
+                        newPermissions[permission.SystemName] = permission;
+                    }
+                }
+
+                return newPermissions;
             }
         }
 
@@ -1588,7 +1618,7 @@ namespace SmartStore.Data.Utilities
                 }
             }
 
-            static T GetExtraData<T>(OldDiscountRequirement req, string name)
+            /*static*/ T GetExtraData<T>(OldDiscountRequirement req, string name)
             {
                 try
                 {
@@ -1609,7 +1639,7 @@ namespace SmartStore.Data.Utilities
                 return default(T);
             }
 
-            static PluginFilterConfigModel GetFilterData(Dictionary<int, SyncMapping> syncMappings, int entityId, string rootNodeName)
+            /*static*/ PluginFilterConfigModel GetFilterData(Dictionary<int, SyncMapping> syncMappings, int entityId, string rootNodeName)
             {
                 try
                 {
@@ -1630,11 +1660,11 @@ namespace SmartStore.Data.Utilities
                 return null;
             }
 
-            static void AddRulesForCommonFilters(SmartObjectContext ctx, RuleSetEntity ruleSet, PluginFilterConfigModel model, string pluginSystemName)
+            /*static*/ void AddRulesForCommonFilters(SmartObjectContext _ctx, RuleSetEntity ruleSet, PluginFilterConfigModel model, string pluginSystemName)
             {
                 // Store id (if plugin is limited to stores).
                 var settingName = $"PluginSetting.{pluginSystemName}.LimitedToStores";
-                var limitedToStoresValue = ctx.Set<Setting>()
+                var limitedToStoresValue = _ctx.Set<Setting>()
                     .Where(x => x.Name == settingName)
                     .Select(x => x.Value)
                     .FirstOrDefault();
@@ -1671,7 +1701,7 @@ namespace SmartStore.Data.Utilities
                         else
                         {
                             // There's no operator for this filter. We have to turn him around logically.
-                            var allRoleIds = ctx.Set<CustomerRole>().Select(x => x.Id).ToList();
+                            var allRoleIds = _ctx.Set<CustomerRole>().Select(x => x.Id).ToList();
                             var includedRoleIds = allRoleIds.Except(excludedRoleIds).ToArray();
 
                             if (includedRoleIds.Any())

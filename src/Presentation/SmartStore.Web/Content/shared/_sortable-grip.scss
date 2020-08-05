@@ -2,7 +2,7 @@
 /// <reference path="_mixins.scss" />
 /// <reference path="../bs4/scss/bootstrap.scss" />
 
-// Sortable gripp
+// Sortable grip
 // ------------------------------
 
 .sortable-grip {
@@ -40,3 +40,8 @@
 	border: 1px dashed #CCC;
 	background: none;
 }*/
+
+// sortable.js
+.sortable-ghost {
+	background-color: rgba($primary, 0.1) !important;
+}

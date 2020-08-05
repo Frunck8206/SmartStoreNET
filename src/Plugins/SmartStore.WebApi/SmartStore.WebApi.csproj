@@ -229,9 +229,10 @@
     <Compile Include="Controllers\OData\GenericAttributesController.cs" />
     <Compile Include="Controllers\OData\MeasureWeightsController.cs" />
     <Compile Include="Controllers\OData\MeasureDimensionsController.cs" />
-    <Compile Include="Controllers\OData\LocalizedPropertysController.cs" />
+    <Compile Include="Controllers\OData\LocalizedPropertiesController.cs" />
     <Compile Include="Controllers\OData\LanguagesController.cs" />
     <Compile Include="Controllers\OData\ManufacturersController.cs" />
+    <Compile Include="Controllers\OData\NewsLetterSubscriptionsController.cs" />
     <Compile Include="Controllers\OData\OrderNotesController.cs" />
     <Compile Include="Controllers\OData\OrderItemsController.cs" />
     <Compile Include="Controllers\OData\OrdersController.cs" />

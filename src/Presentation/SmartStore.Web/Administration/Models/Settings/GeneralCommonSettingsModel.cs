@@ -75,7 +75,10 @@ namespace SmartStore.Admin.Models.Settings
             [AllowHtml]
             public string DefaultMetaDescription { get; set; }
 
-			[SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.MetaRobotsContent")]
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.UseDefaultsOnHomepageOnly")]
+            public bool UseDefaultsOnHomepageOnly { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.MetaRobotsContent")]
 			public string MetaRobotsContent { get; set; }
 
 			[SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.ConvertNonWesternChars")]
@@ -98,6 +101,30 @@ namespace SmartStore.Admin.Models.Settings
 
             [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.ExtraRobotsDisallows")]
             public string ExtraRobotsDisallows { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapEnabled")]
+            public bool XmlSitemapEnabled { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesBlog")]
+            public bool XmlSitemapIncludesBlog { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesCategories")]
+            public bool XmlSitemapIncludesCategories { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesForum")]
+            public bool XmlSitemapIncludesForum { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesManufacturers")]
+            public bool XmlSitemapIncludesManufacturers { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesNews")]
+            public bool XmlSitemapIncludesNews { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesProducts")]
+            public bool XmlSitemapIncludesProducts { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.XmlSitemapIncludesTopics")]
+            public bool XmlSitemapIncludesTopics { get; set; }
         }
 
 		public partial class SecuritySettingsModel
@@ -173,7 +200,7 @@ namespace SmartStore.Admin.Models.Settings
             public bool LetterPageSizeEnabled { get; set; }
 
             [SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.PdfLogo")]
-            [UIHint("Picture")]
+            [UIHint("Media"), AdditionalMetadata("album", "content")]
             public int LogoPictureId { get; set; }
 
 			[SmartResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.AttachOrderPdfToOrderPlacedEmail")]

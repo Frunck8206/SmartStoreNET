@@ -16,7 +16,8 @@ namespace SmartStore.Core.Domain.Orders
 			NumberOfDaysReturnRequestAvailable = 365;
 			MinimumOrderPlacementInterval = 30;
 			OrderListPageSize = 10;
-		}
+            RecurringPaymentListPageSize = 10;
+        }
 		
 		/// <summary>
         /// Gets or sets a value indicating whether customer can make re-order
@@ -24,15 +25,20 @@ namespace SmartStore.Core.Domain.Orders
         public bool IsReOrderAllowed { get; set; }
 
         /// <summary>
-        /// Gets or sets a minimum order subtotal amount
-        /// </summary>
-        public decimal MinOrderSubtotalAmount { get; set; }
-
-        /// <summary>
         /// Gets or sets a minimum order total amount
         /// </summary>
-        public decimal MinOrderTotalAmount { get; set; }
-        
+        public decimal MinOrderAmount { get; set; }
+
+        /// <summary>
+        /// Gets or sets a maximum order total amount
+        /// </summary>
+        public decimal MaxOrderAmount { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether min/max order amount is relating to order amount subtotal
+        /// </summary>
+        public bool ApplyToSubtotal { get; set; }
+
         /// <summary>
         /// Gets or sets a value indicating whether anonymous checkout allowed
         /// </summary>
@@ -92,5 +98,10 @@ namespace SmartStore.Core.Domain.Orders
 		/// Page size of the order list
 		/// </summary>
 		public int OrderListPageSize { get; set; }
-	}
+
+        /// <summary>
+        /// Page size of the recurring payment list
+        /// </summary>
+        public int RecurringPaymentListPageSize { get; set; }
+    }
 }

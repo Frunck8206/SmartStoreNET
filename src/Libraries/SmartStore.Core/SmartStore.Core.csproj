@@ -230,6 +230,7 @@
     <Compile Include="Domain\Customers\PrivacySettings.cs" />
     <Compile Include="Domain\Customers\WalletHistory.cs" />
     <Compile Include="Domain\Customers\WalletPostingReason.cs" />
+    <Compile Include="Domain\Dashboard\OrderDataPoint.cs" />
     <Compile Include="Domain\DataExchange\DataExchangeEnums.cs" />
     <Compile Include="Domain\DataExchange\ImportEnums.cs" />
     <Compile Include="Domain\DataExchange\ImportProfile.cs" />
@@ -280,6 +281,7 @@
     <Compile Include="Extensions\IOExtensions.cs" />
     <Compile Include="Extensions\NumericExtensions.cs" />
     <Compile Include="Data\IQueryableExtensions.cs" />
+    <Compile Include="Extensions\ProcessExtensions.cs" />
     <Compile Include="Extensions\RegexExtensions.cs" />
     <Compile Include="Extensions\RouteExtensions.cs" />
     <Compile Include="Extensions\XPathExtensions.cs" />
@@ -293,7 +295,9 @@
     <Compile Include="Infrastructure\DependencyManagement\Work.cs" />
     <Compile Include="Infrastructure\ApplicationEnvironment.cs" />
     <Compile Include="Infrastructure\IApplicationEnvironment.cs" />
+    <Compile Include="IO\DirectoryHasher.cs" />
     <Compile Include="IO\ImageHeader.cs" />
+    <Compile Include="IO\SeekableReadOnlyStream.cs" />
     <Compile Include="IO\SymLink\FileSystemInfoExtensions.cs" />
     <Compile Include="IO\SymLink\SymbolicLink.cs" />
     <Compile Include="IO\VirtualPath\DefaultVirtualPathProvider.cs" />
@@ -308,6 +312,7 @@
     <Compile Include="IAuditable.cs" />
     <Compile Include="ITransient.cs" />
     <Compile Include="Collections\TrimmedBuffer.cs" />
+    <Compile Include="Linq\ExpressionStarter.cs" />
     <Compile Include="Localization\ILocalizationFileResolver.cs" />
     <Compile Include="Localization\LocalizationFileResolver.cs" />
     <Compile Include="Localization\LocalizationHelper.cs" />
@@ -318,6 +323,7 @@
     <Compile Include="Logging\log4net\SmartFileAppender.cs" />
     <Compile Include="Logging\LoggingModule.cs" />
     <Compile Include="Money.cs" />
+    <Compile Include="Plugins\ICookiePublisher.cs" />
     <Compile Include="Plugins\IConfigurable.cs" />
     <Compile Include="Plugins\PluginManager.Cache.cs" />
     <Compile Include="Plugins\Providers\DependentWidgetsAttribute.cs" />
@@ -570,7 +576,7 @@
     <Compile Include="Domain\Catalog\SpecificationAttributeOptionFilter.cs" />
     <Compile Include="Domain\Common\CommonSettings.cs" />
     <Compile Include="Domain\Common\PdfSettings.cs" />
-    <Compile Include="Domain\Customers\BestCustomerReportLine.cs" />
+    <Compile Include="Domain\Customers\TopCustomerReportLine.cs" />
     <Compile Include="Domain\Orders\OrderAverageReportLine.cs" />
     <Compile Include="Domain\Orders\OrderAverageReportLineSummary.cs" />
     <Compile Include="Domain\Topics\Topic.cs" />

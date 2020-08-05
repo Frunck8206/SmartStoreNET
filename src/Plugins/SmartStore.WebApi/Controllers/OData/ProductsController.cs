@@ -333,7 +333,6 @@ namespace SmartStore.WebApi.Controllers.OData
 			return result.Hits.AsQueryable();
 		}
 
-        [WebApiAuthenticate(Permission = Permissions.Catalog.Product.Read)]
         private decimal? CalculatePrice(int key, bool lowestPrice)
 		{
 			string requiredProperties = "TierPrices, AppliedDiscounts, ProductBundleItems";
@@ -347,7 +346,6 @@ namespace SmartStore.WebApi.Controllers.OData
 				{
 					if (entity.ProductType == ProductType.GroupedProduct)
 					{
-						Product lowestPriceProduct;
 						var searchQuery = new CatalogSearchQuery()
 							.VisibleOnly()
 							.HasParentGroupedProduct(entity.Id);
@@ -355,12 +353,11 @@ namespace SmartStore.WebApi.Controllers.OData
 						var query = _catalogSearchService.Value.PrepareQuery(searchQuery, GetExpandedEntitySet(requiredProperties));
 						var associatedProducts = query.OrderBy(x => x.DisplayOrder).ToList();
 
-						result = _priceCalculationService.Value.GetLowestPrice(entity, customer, null, associatedProducts, out lowestPriceProduct);
+						result = _priceCalculationService.Value.GetLowestPrice(entity, customer, null, associatedProducts, out var _);
 					}
 					else
 					{
-						bool displayFromMessage;
-						result = _priceCalculationService.Value.GetLowestPrice(entity, customer, null, out displayFromMessage);
+						result = _priceCalculationService.Value.GetLowestPrice(entity, customer, null, out var _);
 					}
 				}
 				else

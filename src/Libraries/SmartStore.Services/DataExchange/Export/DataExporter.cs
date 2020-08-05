@@ -60,7 +60,7 @@ namespace SmartStore.Services.DataExchange.Export
         private readonly Lazy<ILocalizedEntityService> _localizedEntityService;
 		private readonly Lazy<ILanguageService> _languageService;
         private readonly Lazy<IUrlRecordService> _urlRecordService;
-		private readonly Lazy<IPictureService> _pictureService;
+        private readonly Lazy<IMediaService> _mediaService;
 		private readonly Lazy<IPriceCalculationService> _priceCalculationService;
 		private readonly Lazy<ICurrencyService> _currencyService;
 		private readonly Lazy<ITaxService> _taxService;
@@ -109,8 +109,8 @@ namespace SmartStore.Services.DataExchange.Export
             Lazy<ILocalizedEntityService> localizedEntityService,
 			Lazy<ILanguageService> languageService,
 			Lazy<IUrlRecordService> urlRecordService,
-			Lazy<IPictureService> pictureService,
-			Lazy<IPriceCalculationService> priceCalculationService,
+            Lazy<IMediaService> mediaService,
+            Lazy<IPriceCalculationService> priceCalculationService,
 			Lazy<ICurrencyService> currencyService,
 			Lazy<ITaxService> taxService,
 			Lazy<ICategoryService> categoryService,
@@ -155,7 +155,7 @@ namespace SmartStore.Services.DataExchange.Export
 			_localizedEntityService = localizedEntityService;
 			_languageService = languageService;
 			_urlRecordService = urlRecordService;
-			_pictureService = pictureService;
+            _mediaService = mediaService;
 			_priceCalculationService = priceCalculationService;
 			_currencyService = currencyService;
 			_taxService = taxService;
@@ -194,11 +194,9 @@ namespace SmartStore.Services.DataExchange.Export
 			_localizationSettings = localizationSettings;
 			_taxSettings = taxSettings;
             _seoSettings = seoSettings;
-
-			T = NullLocalizer.Instance;
 		}
 
-		public Localizer T { get; set; }
+		public Localizer T { get; set; } = NullLocalizer.Instance;
 
         #endregion
 
@@ -452,8 +450,8 @@ namespace SmartStore.Services.DataExchange.Export
 						{
 							ctx.ManufacturerExportContext = new ManufacturerExportContext(entities,
 								x => _manufacturerService.Value.GetProductManufacturersByManufacturerIds(x, true),
-								x => _pictureService.Value.GetPicturesByIds(x)
-							);
+                                x => _mediaService.Value.GetFilesByIds(x)
+                            );
 						},
 						entity => Convert(ctx, entity),
 						offset, PageSize, limit, recordsPerSegment, totalRecords
@@ -468,7 +466,7 @@ namespace SmartStore.Services.DataExchange.Export
 						{
 							ctx.CategoryExportContext = new CategoryExportContext(entities,
 								x => _categoryService.Value.GetProductCategoriesByCategoryIds(x),
-								x => _pictureService.Value.GetPicturesByIds(x)
+                                x => _mediaService.Value.GetFilesByIds(x)
 							);
 						},
 						entity => Convert(ctx, entity),
@@ -834,8 +832,7 @@ namespace SmartStore.Services.DataExchange.Export
 				x => _productService.Value.GetAppliedDiscountsByProductIds(x),
 				x => _productService.Value.GetBundleItemsByProductIds(x, includeHidden),
                 x => _productService.Value.GetAssociatedProductsByProductIds(x, includeHidden),
-				x => _pictureService.Value.GetPicturesByProductIds(x, maxPicturesPerProduct, true),
-				x => _productService.Value.GetProductPicturesByProductIds(x),
+				x => _productService.Value.GetProductPicturesByProductIds(x, maxPicturesPerProduct),
 				x => _productService.Value.GetProductTagsByProductIds(x, includeHidden),
                 x => _downloadService.Value.GetDownloadsByEntityIds(x, nameof(Product))
 			);
@@ -1628,7 +1625,7 @@ namespace SmartStore.Services.DataExchange.Export
 				var logHead = new StringBuilder();
 				logHead.AppendLine();
 				logHead.AppendLine(new string('-', 40));
-				logHead.AppendLine("SmartStore.NET: v." + SmartStoreVersion.CurrentFullVersion);
+				logHead.AppendLine("Smartstore: v." + SmartStoreVersion.CurrentFullVersion);
 				logHead.Append("Export profile: " + profile.Name);
 				logHead.AppendLine(profile.Id == 0 ? " (volatile)" : $" (Id {profile.Id})");
 
@@ -1808,7 +1805,6 @@ namespace SmartStore.Services.DataExchange.Export
 
                     // lazyLoading: false, proxyCreation: false impossible due to price calculation.
                     using (var scope = new DbContextScope(_dbContext, autoDetectChanges: false, proxyCreation: true, validateOnSave: false, forceNoTracking: true))
-                    using (_pictureService.Value.BeginScope(false))
                     {
                         ctx.DeliveryTimes = _deliveryTimeService.Value.GetAllDeliveryTimes().ToDictionary(x => x.Id);
                         ctx.QuantityUnits = _quantityUnitService.Value.GetAllQuantityUnits().ToDictionary(x => x.Id);

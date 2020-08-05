@@ -37,11 +37,10 @@ namespace SmartStore.Web.Controllers
     public partial class ProductController : PublicControllerBase
 	{
 		private readonly ICommonServices _services;
-		private readonly IManufacturerService _manufacturerService;
 		private readonly IProductService _productService;
 		private readonly IProductAttributeService _productAttributeService;
 		private readonly ITaxService _taxService;
-		private readonly IPictureService _pictureService;
+        private readonly IMediaService _mediaService;
 		private readonly ICustomerContentService _customerContentService;
 		private readonly ICustomerService _customerService;
 		private readonly IRecentlyViewedProductsService _recentlyViewedProductsService;
@@ -63,12 +62,11 @@ namespace SmartStore.Web.Controllers
 
 		public ProductController(
 			ICommonServices services,
-			IManufacturerService manufacturerService,
 			IProductService productService,
 			IProductAttributeService productAttributeService,
 			ITaxService taxService,
-			IPictureService pictureService,
-			ICustomerContentService customerContentService, 
+            IMediaService mediaService,
+            ICustomerContentService customerContentService, 
 			ICustomerService customerService,
 			IRecentlyViewedProductsService recentlyViewedProductsService, 
 			IProductTagService productTagService,
@@ -88,11 +86,10 @@ namespace SmartStore.Web.Controllers
             Lazy<TaxSettings> taxSettings)
         {
 			_services = services;
-			_manufacturerService = manufacturerService;
 			_productService = productService;
 			_productAttributeService = productAttributeService;
 			_taxService = taxService;
-			_pictureService = pictureService;
+            _mediaService = mediaService;
 			_customerContentService = customerContentService;
 			_customerService = customerService;
 			_recentlyViewedProductsService = recentlyViewedProductsService;
@@ -184,44 +181,6 @@ namespace SmartStore.Web.Controllers
 			}
 
 			return View(model.ProductTemplateViewPath, model);
-		}
-
-		[ChildActionOnly]
-		public ActionResult ProductManufacturers(int productId, bool preparePictureModel = false)
-		{
-			var cacheKey = string.Format(ModelCacheEventConsumer.PRODUCT_MANUFACTURERS_MODEL_KEY,
-				productId,
-				!_catalogSettings.HideManufacturerDefaultPictures,
-				_services.WorkContext.WorkingLanguage.Id,
-				_services.StoreContext.CurrentStore.Id);
-
-			var cacheModel = _services.Cache.Get(cacheKey, () =>
-			{
-				var model = _manufacturerService.GetProductManufacturersByProductId(productId)
-					.Select(x =>
-					{
-						var m = x.Manufacturer.ToModel();
-						if (preparePictureModel)
-						{
-							m.PictureModel.ImageUrl = _pictureService.GetUrl(x.Manufacturer.MediaFileId.GetValueOrDefault(), 0, !_catalogSettings.HideManufacturerDefaultPictures);
-							var pictureUrl = _pictureService.GetUrl(x.Manufacturer.MediaFileId.GetValueOrDefault());
-							if (pictureUrl != null)
-							{
-								m.PictureModel.PictureId = x.Manufacturer.MediaFileId.GetValueOrDefault();
-								m.PictureModel.Title = string.Format(T("Media.Product.ImageLinkTitleFormat"), m.Name);
-								m.PictureModel.AlternateText = string.Format(T("Media.Product.ImageAlternateTextFormat"), m.Name);
-							}
-						}
-						return m;
-					})
-					.ToList();
-				return model;
-			}, TimeSpan.FromHours(6));
-
-			if (cacheModel.Count == 0)
-				return Content("");
-
-			return PartialView(cacheModel);
 		}
 
 		[ChildActionOnly]
@@ -502,7 +461,7 @@ namespace SmartStore.Web.Controllers
 			var product = _productService.GetProductById(productId);
 			var bItem = _productService.GetBundleItemById(bundleItemId);
 			IList<ProductBundleItemData> bundleItems = null;
-			ProductBundleItemData bundleItem = (bItem == null ? null : new ProductBundleItemData(bItem));
+			ProductBundleItemData bundleItem = bItem == null ? null : new ProductBundleItemData(bItem);
 
 			// Quantity required for tier prices.
 			string quantityKey = form.AllKeys.FirstOrDefault(k => k.EndsWith("EnteredQuantity"));
@@ -532,39 +491,61 @@ namespace SmartStore.Web.Controllers
 				// Update bundle item thumbnail.
 				if (!bundleItem.Item.HideThumbnail)
 				{
-					var picture = m.GetAssignedPicture(_pictureService, null, bundleItem.Item.ProductId);
-					dynamicThumbUrl = _pictureService.GetUrl(picture, _mediaSettings.BundledProductPictureSize, false);
-				}
+                    var assignedMediaIds = m.SelectedCombination?.GetAssignedMediaIds() ?? new int[0];
+                    if (assignedMediaIds.Any() && _mediaService.GetFileById(assignedMediaIds[0], MediaLoadFlags.AsNoTracking) != null)
+                    {
+                        var file = _productService.GetProductPicturesByProductId(bundleItem.Item.ProductId, 1)
+                            .Select(x => x.MediaFile)
+                            .FirstOrDefault();
+
+                        dynamicThumbUrl = _mediaService.GetUrl(file, _mediaSettings.BundledProductPictureSize, null, false);
+                    }
+                }
 			}
 			else if (isAssociated)
 			{
-				// Update associated product thumbnail.
-				var picture = m.GetAssignedPicture(_pictureService, null, productId);
-				dynamicThumbUrl = _pictureService.GetUrl(picture, _mediaSettings.AssociatedProductPictureSize, false);
-			}
+                // Update associated product thumbnail.
+                var assignedMediaIds = m.SelectedCombination?.GetAssignedMediaIds() ?? new int[0];
+                if (assignedMediaIds.Any() && _mediaService.GetFileById(assignedMediaIds[0], MediaLoadFlags.AsNoTracking) != null)
+                {
+                    var file = _productService.GetProductPicturesByProductId(productId, 1)
+                        .Select(x => x.MediaFile)
+                        .FirstOrDefault();
+
+                    dynamicThumbUrl = _mediaService.GetUrl(file, _mediaSettings.AssociatedProductPictureSize, null, false);
+                }
+            }
 			else if (product.ProductType != ProductType.BundledProduct)
 			{
-				// Update image gallery.
-				var pictures = _pictureService.GetPicturesByProductId(productId);
+                // Update image gallery.
+                var files = _productService.GetProductPicturesByProductId(productId)
+                    .Select(x => x.MediaFile)
+                    .ToList();
 
-                if (product.HasPreviewPicture && pictures.Count > 1)
+                if (product.HasPreviewPicture && files.Count > 1)
                 {
-                    pictures.RemoveAt(0);
+                    files.RemoveAt(0);
                 }
 
-                if (pictures.Count <= _catalogSettings.DisplayAllImagesNumber)
+                if (files.Count <= _catalogSettings.DisplayAllImagesNumber)
 				{
-					// All pictures rendered... only index is required.
-					var picture = m.GetAssignedPicture(_pictureService, pictures);
-					galleryStartIndex = (picture == null ? 0 : pictures.IndexOf(picture));
-				}
-				else
+                    // All pictures rendered... only index is required.
+                    galleryStartIndex = 0;
+
+                    var assignedMediaIds = m.SelectedCombination?.GetAssignedMediaIds() ?? new int[0];
+                    if (assignedMediaIds.Any())
+                    {
+                        var file = files.FirstOrDefault(p => p.Id == assignedMediaIds[0]);
+                        galleryStartIndex = file == null ? 0 : files.IndexOf(file);
+                    }
+                }
+                else
 				{
 					var allCombinationPictureIds = _productAttributeService.GetAllProductVariantAttributeCombinationPictureIds(product.Id);
 
 					_helper.PrepareProductDetailsPictureModel(
 						pictureModel,
-						pictures,
+						files,
 						product.GetLocalized(x => x.Name),
 						allCombinationPictureIds,
 						false,

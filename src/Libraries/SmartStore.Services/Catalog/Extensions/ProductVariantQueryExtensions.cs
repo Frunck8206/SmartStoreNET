@@ -88,20 +88,23 @@ namespace SmartStore.Services.Catalog.Extensions
 						if (request == null)
 						{
 							var firstItemValue = selectedItems.FirstOrDefault()?.Value;
-							Guid downloadGuid;
-							Guid.TryParse(firstItemValue, out downloadGuid);
+							Guid.TryParse(firstItemValue, out var downloadGuid);
+
 							var download = downloadService.GetDownloadByGuid(downloadGuid);
 							if (download != null)
 							{
-								download.IsTransient = false;
-								downloadService.UpdateDownload(download);
+                                if (download.IsTransient)
+                                {
+                                    download.IsTransient = false;
+                                    downloadService.UpdateDownload(download);
+                                }
 
 								result = productAttributeParser.AddProductAttribute(result, pva, download.DownloadGuid.ToString());
 							}
 						}
 						else
 						{
-							var postedFile = request.Files[ProductVariantQueryItem.CreateKey(productId, bundleItemId, pva.ProductAttributeId, pva.Id)];
+                            var postedFile = request.Files[ProductVariantQueryItem.CreateKey(productId, bundleItemId, pva.ProductAttributeId, pva.Id)];
 							if (postedFile != null && postedFile.FileName.HasValue())
 							{
 								if (postedFile.ContentLength > catalogSettings.FileUploadMaximumSizeBytes)
@@ -115,11 +118,12 @@ namespace SmartStore.Services.Catalog.Extensions
 										DownloadGuid = Guid.NewGuid(),
 										UseDownloadUrl = false,
 										DownloadUrl = "",
-										UpdatedOnUtc = DateTime.UtcNow
-									};
+										UpdatedOnUtc = DateTime.UtcNow,
+                                        EntityId = productId,
+                                        EntityName = "ProductAttribute"
+                                    };
 
-									var buffer = postedFile.InputStream != null ? postedFile.InputStream.ToByteArray() : (byte[])null;
-									downloadService.InsertDownload(download, buffer, postedFile.FileName, postedFile.ContentType);
+                                    downloadService.InsertDownload(download, postedFile.InputStream, postedFile.FileName);
 
 									result = productAttributeParser.AddProductAttribute(result, pva, download.DownloadGuid.ToString());
 								}

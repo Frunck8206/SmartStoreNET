@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Web.Hosting;
 using System.Web.Mvc;
 using System.Web.Routing;
 using SmartStore.Core;
@@ -40,7 +41,7 @@ namespace SmartStore.Web.Framework.Seo
 			if (!string.Equals(filterContext.HttpContext.Request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
                 return;
 
-			if (!DataSettings.DatabaseIsInstalled())
+			if (HostingEnvironment.IsHosted && !DataSettings.DatabaseIsInstalled())
                 return;
 
 			var currentStore = StoreContext.Value.CurrentStore;
@@ -177,7 +178,7 @@ namespace SmartStore.Web.Framework.Seo
 				return false;
 
 			// Don't try to fix root path
-			if (context.ControllerContext.HttpContext.Request.RawUrl == "/")
+			if (context.ControllerContext.HttpContext.Request.Path == "/")
 				return false;
 
 			bool rewritten = false;
@@ -238,8 +239,16 @@ namespace SmartStore.Web.Framework.Seo
 				{
 					if (char.IsUpper(c))
 					{
-						url = url.ToLower();
+						var qIndex = url.IndexOf('?');
+						url = qIndex == -1 
+							? url.ToLower() 
+							: url.Substring(0, qIndex).ToLower() + url.Substring(qIndex);
+						
 						rewritten = true;
+						break;
+					}
+					if (c == '?')
+					{
 						break;
 					}
 				}

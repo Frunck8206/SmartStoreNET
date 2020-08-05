@@ -368,6 +368,7 @@
                 public const string Update = "configuration.store.update";
                 public const string Create = "configuration.store.create";
                 public const string Delete = "configuration.store.delete";
+                public const string ReadStats = "configuration.store.readstats";
             }
 
             public static class Shipping
@@ -499,6 +500,8 @@
         public static class Media
         {
             public const string Self = "media";
+            public const string Update = "media.update";
+            public const string Delete = "media.delete";
             public const string Upload = "media.upload";
 
             public static class Download

@@ -99,7 +99,7 @@
                 @Html.SmartLabelFor(model => model.SeoSettings.PageTitleSeoAdjustment)
             </td>
             <td class="adminData">
-				@Html.EnumSettingEditorFor(model => model.SeoSettings.PageTitleSeoAdjustment)
+			    @Html.EnumSettingEditorFor(model => model.SeoSettings.PageTitleSeoAdjustment)
                 @Html.ValidationMessageFor(model => model.SeoSettings.PageTitleSeoAdjustment)
             </td>
         </tr>
@@ -130,25 +130,34 @@
                 @Html.ValidationMessageFor(model => model.SeoSettings.DefaultMetaDescription)
             </td>
         </tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.MetaRobotsContent)
-			</td>
-			<td class="adminData">
-				@Html.SettingEditorFor(model => model.SeoSettings.MetaRobotsContent, Html.DropDownListFor(model => model.SeoSettings.MetaRobotsContent,
-					new List<SelectListItem>
-					{
-						new SelectListItem { Text = "index", Value = "index" },
-						new SelectListItem { Text = "noindex", Value = "noindex" },
-						new SelectListItem { Text = "index, follow", Value = "index, follow" },
-						new SelectListItem { Text = "index, nofollow", Value = "index, nofollow" },
-						new SelectListItem { Text = "noindex, follow", Value = "noindex, follow" },
-						new SelectListItem { Text = "noindex, nofollow", Value = "noindex, nofollow" }
-					},
-					T("Common.Unspecified")))
-				@Html.ValidationMessageFor(model => model.SeoSettings.MetaRobotsContent)
-			</td>
-		</tr>
+        <tr>
+            <td class="adminTitle">
+                @Html.SmartLabelFor(model => model.SeoSettings.UseDefaultsOnHomepageOnly)
+            </td>
+            <td class="adminData">
+                @Html.SettingEditorFor(model => model.SeoSettings.UseDefaultsOnHomepageOnly, Html.CheckBoxFor(model => model.SeoSettings.UseDefaultsOnHomepageOnly))
+                @Html.ValidationMessageFor(model => model.SeoSettings.UseDefaultsOnHomepageOnly)
+            </td>
+        </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.MetaRobotsContent)
+		    </td>
+		    <td class="adminData">
+			    @Html.SettingEditorFor(model => model.SeoSettings.MetaRobotsContent, Html.DropDownListFor(model => model.SeoSettings.MetaRobotsContent,
+				    new List<SelectListItem>
+				    {
+					    new SelectListItem { Text = "index", Value = "index" },
+					    new SelectListItem { Text = "noindex", Value = "noindex" },
+					    new SelectListItem { Text = "index, follow", Value = "index, follow" },
+					    new SelectListItem { Text = "index, nofollow", Value = "index, nofollow" },
+					    new SelectListItem { Text = "noindex, follow", Value = "noindex, follow" },
+					    new SelectListItem { Text = "noindex, nofollow", Value = "noindex, nofollow" }
+				    },
+				    T("Common.Unspecified")))
+			    @Html.ValidationMessageFor(model => model.SeoSettings.MetaRobotsContent)
+		    </td>
+	    </tr>
         <tr>
             <td class="adminTitle">
                 @Html.SmartLabelFor(model => model.SeoSettings.CanonicalUrlsEnabled)
@@ -158,15 +167,15 @@
                 @Html.ValidationMessageFor(model => model.SeoSettings.CanonicalUrlsEnabled)
             </td>
         </tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.CanonicalHostNameRule)
-			</td>
-			<td class="adminData">
-				@Html.EnumSettingEditorFor(model => model.SeoSettings.CanonicalHostNameRule)
-				@Html.ValidationMessageFor(model => model.SeoSettings.CanonicalHostNameRule)
-			</td>
-		</tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.CanonicalHostNameRule)
+		    </td>
+		    <td class="adminData">
+			    @Html.EnumSettingEditorFor(model => model.SeoSettings.CanonicalHostNameRule)
+			    @Html.ValidationMessageFor(model => model.SeoSettings.CanonicalHostNameRule)
+		    </td>
+	    </tr>
         <tr>
             <td class="adminTitle">
                 @Html.SmartLabelFor(model => model.SeoSettings.ExtraRobotsDisallows)
@@ -176,62 +185,144 @@
                 @Html.ValidationMessageFor(model => model.SeoSettings.ExtraRobotsDisallows)
             </td>
         </tr>
-		<tr>
-			<td colspan="2">
-				<div class="admin-config-group">
-					<div class="title">@T("Admin.System.SeNames")</div>
-				</div>
-			</td>
-		</tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.ConvertNonWesternChars)
-			</td>
-			<td class="adminData">
-				@Html.SettingEditorFor(model => model.SeoSettings.ConvertNonWesternChars)
-				@Html.ValidationMessageFor(model => model.SeoSettings.ConvertNonWesternChars)
-			</td>
-		</tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
-			</td>
-			<td class="adminData">
-				@Html.SettingEditorFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
-				@Html.ValidationMessageFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
-			</td>
-		</tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.SeoNameCharConversion)
-			</td>
-			<td class="adminData">
-				@Html.TextAreaFor(model => model.SeoSettings.SeoNameCharConversion, new { style = "height:250px" })
-				@Html.ValidationMessageFor(model => model.SeoSettings.SeoNameCharConversion)
-			</td>
-		</tr>
-		<tr>
-			<td class="adminTitle">
-				@Html.SmartLabelFor(model => model.SeoSettings.TestSeoNameCreation)
-			</td>
-			<td class="adminData">
-				<div class="input-group">
-					@Html.EditorFor(model => model.SeoSettings.TestSeoNameCreation, new { @class = "form-control" })
-					<button id="TestSeoNameCreationButton" type="button" class="btn btn-outline-secondary">
-						<i class="fa fa-sync"></i>
-						<span>@T("Admin.Common.Check")</span>
-					</button>
-				</div>
-			</td>
-		</tr>
-		<tr>
-			<td class="adminTitle">
-				&nbsp;
-			</td>
-			<td id="TestSeoNameCreationResult" class="adminData">
+	    <tr>
+		    <td colspan="2">
+			    <div class="admin-config-group">
+				    <div class="title">@T("Admin.System.SeNames")</div>
+			    </div>
+		    </td>
+	    </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.ConvertNonWesternChars)
+		    </td>
+		    <td class="adminData">
+			    @Html.SettingEditorFor(model => model.SeoSettings.ConvertNonWesternChars)
+			    @Html.ValidationMessageFor(model => model.SeoSettings.ConvertNonWesternChars)
+		    </td>
+	    </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
+		    </td>
+		    <td class="adminData">
+			    @Html.SettingEditorFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
+			    @Html.ValidationMessageFor(model => model.SeoSettings.AllowUnicodeCharsInUrls)
+		    </td>
+	    </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.SeoNameCharConversion)
+		    </td>
+		    <td class="adminData">
+			    @Html.TextAreaFor(model => model.SeoSettings.SeoNameCharConversion, new { style = "height:250px" })
+			    @Html.ValidationMessageFor(model => model.SeoSettings.SeoNameCharConversion)
+		    </td>
+	    </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    @Html.SmartLabelFor(model => model.SeoSettings.TestSeoNameCreation)
+		    </td>
+		    <td class="adminData">
+			    <div class="input-group">
+				    @Html.EditorFor(model => model.SeoSettings.TestSeoNameCreation, new { @class = "form-control" })
+				    <button id="TestSeoNameCreationButton" type="button" class="btn btn-outline-secondary">
+					    <i class="fa fa-sync"></i>
+					    <span>@T("Admin.Common.Check")</span>
+				    </button>
+			    </div>
+		    </td>
+	    </tr>
+	    <tr>
+		    <td class="adminTitle">
+			    &nbsp;
+		    </td>
+		    <td id="TestSeoNameCreationResult" class="adminData">
 
-			</td>
-		</tr>
+		    </td>
+	    </tr>
+        <tr>
+            <td colspan="2">
+                <div class="admin-config-group">
+                    <div class="title">@T("Admin.System.XMLSitemap")</div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td class="adminTitle">
+                @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapEnabled)
+            </td>
+            <td class="adminData">
+                @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapEnabled,
+                Html.CheckBoxFor(model => model.SeoSettings.XmlSitemapEnabled, new { data_toggler_for = "#xml-sitemap" }))
+                @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapEnabled)
+            </td>
+        </tr>
+        <tbody id="xml-sitemap">
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesProducts)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesProducts)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesProducts)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesCategories)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesCategories)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesCategories)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesManufacturers)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesManufacturers)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesManufacturers)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesTopics)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesTopics)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesTopics)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesNews)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesNews)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesNews)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesBlog)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesBlog)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesBlog)
+                </td>
+            </tr>
+            <tr>
+                <td class="adminTitle">
+                    @Html.SmartLabelFor(model => model.SeoSettings.XmlSitemapIncludesForum)
+                </td>
+                <td class="adminData">
+                    @Html.SettingEditorFor(model => model.SeoSettings.XmlSitemapIncludesForum)
+                    @Html.ValidationMessageFor(model => model.SeoSettings.XmlSitemapIncludesForum)
+                </td>
+            </tr>
+        </tbody>
     </table>
 }
 

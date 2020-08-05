@@ -16,6 +16,7 @@ using SmartStore.Core.Domain.Catalog;
 using SmartStore.Core.Domain.Localization;
 using SmartStore.Core.Infrastructure;
 using SmartStore.Services.Localization;
+using SmartStore.Services.Media;
 using SmartStore.Utilities;
 using SmartStore.Utilities.ObjectPools;
 using SmartStore.Web.Framework.Localization;
@@ -145,6 +146,8 @@ namespace SmartStore.Web.Framework
 
 			helper.SmartStore().Window().Name(modalId)
 				.Title(EngineContext.Current.Resolve<ILocalizationService>().GetResource("Admin.Common.AreYouSure"))
+				.AddCssClass("modal-confirm-delete")
+				.BodyHtmlAttributes(new { @class = "pt-0" })
 				.Content(helper.Partial("Delete", deleteConfirmationModel).ToHtmlString())
 				.Show(false)
 				.Render();
@@ -407,7 +410,6 @@ namespace SmartStore.Web.Framework
             Expression<Func<TModel, TEnum>> expression,
             string optionLabel = null) where TEnum : struct
         {
-
             return htmlHelper.DropDownListForEnum(expression, null, optionLabel);
         }
 
@@ -922,6 +924,62 @@ namespace SmartStore.Web.Framework
 
 			return MvcHtmlString.Create(result);
 		}
-	}
+
+        #region Media
+
+        public static MvcHtmlString MediaThumbnail(
+            this HtmlHelper helper,
+            MediaFileInfo file,
+            int size,
+            string extraCssClasses = null)
+        {
+            return MediaInternal(helper, file, false, size, extraCssClasses);
+        }
+
+        public static MvcHtmlString MediaViewer(
+            this HtmlHelper helper,
+            MediaFileInfo file,
+            string extraCssClasses = null)
+        {
+            return MediaInternal(helper, file, true, 0, extraCssClasses);
+        }
+
+        private static MvcHtmlString MediaInternal(
+            this HtmlHelper helper,
+            MediaFileInfo file,
+            bool renderViewer,
+            int size,
+            string extraCssClasses)
+        {
+            if (file?.File == null)
+            {
+                return MvcHtmlString.Empty;
+            }
+
+            // Validate size parameter.
+            if (file.MediaType != "image" && !renderViewer)
+            {
+                Guard.IsPositive(size, nameof(size), $"The size must be greater than 0 to get a thumbnail for type '{file.MediaType.NaIfEmpty()}'.");
+            }
+
+            if (size > 0)
+            {
+                file.ThumbSize = size;
+            }
+
+			var f = file?.File;
+
+			var model = new MediaTemplateModel(file, renderViewer)
+            {
+                ExtraCssClasses = extraCssClasses,
+				Title = f?.GetLocalized(x => x.Title),
+				Alt = f?.GetLocalized(x => x.Alt)
+			};
+
+            return helper.Partial("MediaTemplates/" + file.MediaType, model);
+        }
+
+        #endregion
+    }
 }
 

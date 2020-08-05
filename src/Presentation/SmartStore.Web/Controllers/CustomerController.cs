@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
+using SmartStore.ComponentModel;
 using SmartStore.Core;
 using SmartStore.Core.Domain.Common;
 using SmartStore.Core.Domain.Customers;
@@ -68,7 +69,7 @@ namespace SmartStore.Web.Controllers
         private readonly ICurrencyService _currencyService;
         private readonly IPaymentService _paymentService;
         private readonly IPriceFormatter _priceFormatter;
-        private readonly IPictureService _pictureService;
+        private readonly IMediaService _mediaService;
         private readonly INewsLetterSubscriptionService _newsLetterSubscriptionService;
         private readonly IForumService _forumService;
         private readonly IShoppingCartService _shoppingCartService;
@@ -91,31 +92,43 @@ namespace SmartStore.Web.Controllers
 		public CustomerController(
             IAuthenticationService authenticationService,
             IDateTimeHelper dateTimeHelper,
-            DateTimeSettings dateTimeSettings, TaxSettings taxSettings,
+            DateTimeSettings dateTimeSettings, 
+            TaxSettings taxSettings,
             ILocalizationService localizationService,
-			IWorkContext workContext, IStoreContext storeContext,
+			IWorkContext workContext, 
+            IStoreContext storeContext,
 			ICustomerService customerService,
             IGenericAttributeService genericAttributeService,
             ICustomerRegistrationService customerRegistrationService,
-            ITaxService taxService, RewardPointsSettings rewardPointsSettings,
-            CustomerSettings customerSettings,AddressSettings addressSettings, ForumSettings forumSettings,
-            OrderSettings orderSettings, IAddressService addressService,
-            ICountryService countryService, IStateProvinceService stateProvinceService,
+            ITaxService taxService, 
+            RewardPointsSettings rewardPointsSettings,
+            CustomerSettings customerSettings,
+            AddressSettings addressSettings, 
+            ForumSettings forumSettings,
+            OrderSettings orderSettings, 
+            IAddressService addressService,
+            ICountryService countryService, 
+            IStateProvinceService stateProvinceService,
             IOrderTotalCalculationService orderTotalCalculationService,
-            IOrderProcessingService orderProcessingService, IOrderService orderService,
+            IOrderProcessingService orderProcessingService,
+            IOrderService orderService,
             ICurrencyService currencyService,
             IPaymentService paymentService,
             IPriceFormatter priceFormatter,
-            IPictureService pictureService, INewsLetterSubscriptionService newsLetterSubscriptionService,
-            IForumService forumService, IShoppingCartService shoppingCartService,
+            IMediaService mediaService,
+            INewsLetterSubscriptionService newsLetterSubscriptionService,
+            IForumService forumService, 
+            IShoppingCartService shoppingCartService,
             IOpenAuthenticationService openAuthenticationService, 
             IBackInStockSubscriptionService backInStockSubscriptionService, 
-            IDownloadService downloadService, IWebHelper webHelper,
+            IDownloadService downloadService,
+            IWebHelper webHelper,
             ICustomerActivityService customerActivityService, 
 			ProductUrlHelper productUrlHelper,
 			MediaSettings mediaSettings,
             LocalizationSettings localizationSettings,
-            CaptchaSettings captchaSettings, ExternalAuthenticationSettings externalAuthenticationSettings,
+            CaptchaSettings captchaSettings, 
+            ExternalAuthenticationSettings externalAuthenticationSettings,
 			PluginMediator pluginMediator)
         {
             _authenticationService = authenticationService;
@@ -143,7 +156,7 @@ namespace SmartStore.Web.Controllers
             _currencyService = currencyService;
             _paymentService = paymentService;
             _priceFormatter = priceFormatter;
-            _pictureService = pictureService;
+            _mediaService = mediaService;
             _newsLetterSubscriptionService = newsLetterSubscriptionService;
             _forumService = forumService;
             _shoppingCartService = shoppingCartService;
@@ -349,16 +362,16 @@ namespace SmartStore.Web.Controllers
         }
         
         [NonAction]
-        protected CustomerOrderListModel PrepareCustomerOrderListModel(Customer customer, int pageIndex)
+        protected CustomerOrderListModel PrepareCustomerOrderListModel(Customer customer, int orderPageIndex, int recurringPaymentPageIndex)
         {
-            if (customer == null)
-                throw new ArgumentNullException("customer");
+            Guard.NotNull(customer, nameof(customer));
 
-            var roundingAmount = decimal.Zero;
-            var storeScope = _orderSettings.DisplayOrdersOfAllStores ? 0 : _storeContext.CurrentStore.Id;
+            var store = _storeContext.CurrentStore;
             var model = new CustomerOrderListModel();
 
-			var orders = _orderService.SearchOrders(storeScope, customer.Id, null, null, null, null, null, null, null, null, pageIndex, _orderSettings.OrderListPageSize);
+            // Orders.
+			var orders = _orderService.SearchOrders(_orderSettings.DisplayOrdersOfAllStores ? 0 : store.Id, customer.Id,
+                null, null, null, null, null, null, null, null, orderPageIndex, _orderSettings.OrderListPageSize);
 
 			var orderModels = orders
 				.Select(x =>
@@ -372,7 +385,7 @@ namespace SmartStore.Web.Controllers
 						IsReturnRequestAllowed = _orderProcessingService.IsReturnRequestAllowed(x)
 					};
 
-                    var orderTotal = x.GetOrderTotalInCustomerCurrency(_currencyService, _paymentService, out roundingAmount);
+                    var orderTotal = x.GetOrderTotalInCustomerCurrency(_currencyService, _paymentService, out _);
                     orderModel.OrderTotal = _priceFormatter.FormatPrice(orderTotal, true, x.CustomerCurrencyCode, false, _workContext.WorkingLanguage);
 
 					return orderModel;
@@ -381,25 +394,29 @@ namespace SmartStore.Web.Controllers
 
 			model.Orders = new PagedList<CustomerOrderListModel.OrderDetailsModel>(orderModels, orders.PageIndex, orders.PageSize, orders.TotalCount);
 
+            // Recurring payments.
+			var recurringPayments = _orderService.SearchRecurringPayments(store.Id, customer.Id, 0, null, false, recurringPaymentPageIndex, _orderSettings.RecurringPaymentListPageSize);
 
-			var recurringPayments = _orderService.SearchRecurringPayments(_storeContext.CurrentStore.Id, customer.Id, 0, null);
-
-            foreach (var recurringPayment in recurringPayments)
-            {
-                var recurringPaymentModel = new CustomerOrderListModel.RecurringOrderModel
+            var rpModels = recurringPayments
+                .Select(x =>
                 {
-                    Id = recurringPayment.Id,
-                    StartDate = _dateTimeHelper.ConvertToUserTime(recurringPayment.StartDateUtc, DateTimeKind.Utc).ToString(),
-                    CycleInfo = string.Format("{0} {1}", recurringPayment.CycleLength, recurringPayment.CyclePeriod.GetLocalizedEnum(_localizationService, _workContext)),
-                    NextPayment = recurringPayment.NextPaymentDate.HasValue ? _dateTimeHelper.ConvertToUserTime(recurringPayment.NextPaymentDate.Value, DateTimeKind.Utc).ToString() : "",
-                    TotalCycles = recurringPayment.TotalCycles,
-                    CyclesRemaining = recurringPayment.CyclesRemaining,
-                    InitialOrderId = recurringPayment.InitialOrder.Id,
-                    CanCancel = _orderProcessingService.CanCancelRecurringPayment(customer, recurringPayment),
-                };
+                    var rpModel = new CustomerOrderListModel.RecurringPaymentModel
+                    {
+                        Id = x.Id,
+                        StartDate = _dateTimeHelper.ConvertToUserTime(x.StartDateUtc, DateTimeKind.Utc).ToString(),
+                        CycleInfo = string.Format("{0} {1}", x.CycleLength, x.CyclePeriod.GetLocalizedEnum(_localizationService, _workContext)),
+                        NextPayment = x.NextPaymentDate.HasValue ? _dateTimeHelper.ConvertToUserTime(x.NextPaymentDate.Value, DateTimeKind.Utc).ToString() : "",
+                        TotalCycles = x.TotalCycles,
+                        CyclesRemaining = x.CyclesRemaining,
+                        InitialOrderId = x.InitialOrder.Id,
+                        CanCancel = _orderProcessingService.CanCancelRecurringPayment(customer, x),
+                    };
 
-                model.RecurringOrders.Add(recurringPaymentModel);
-            }
+                    return rpModel;
+                })
+                .ToList();
+
+            model.RecurringPayments = new PagedList<CustomerOrderListModel.RecurringPaymentModel>(rpModels, recurringPayments.PageIndex, recurringPayments.PageSize, recurringPayments.TotalCount);
 
             return model;
         }
@@ -768,7 +785,7 @@ namespace SmartStore.Web.Controllers
 								Services.MessageFactory.SendCustomerWelcomeMessage(customer, _workContext.WorkingLanguage.Id);
 
                                 var redirectUrl = Url.RouteUrl("RegisterResult", new { resultId = (int)UserRegistrationType.Standard });
-                                if (!String.IsNullOrEmpty(returnUrl))
+                                if (returnUrl.HasValue())
                                     redirectUrl = _webHelper.ModifyQueryString(redirectUrl, "returnUrl=" + HttpUtility.UrlEncode(returnUrl), null);
                                 return Redirect(redirectUrl);
                             }
@@ -785,36 +802,17 @@ namespace SmartStore.Web.Controllers
                 }
             }
 
-            //If we got this far, something failed, redisplay form
+            // If we got this far, something failed, redisplay form.
             model.AllowCustomersToSetTimeZone = _dateTimeSettings.AllowCustomersToSetTimeZone;
             foreach (var tzi in _dateTimeHelper.GetSystemTimeZones())
                 model.AvailableTimeZones.Add(new SelectListItem() { Text = tzi.DisplayName, Value = tzi.Id, Selected = (tzi.Id == _dateTimeHelper.DefaultStoreTimeZone.Id) });
             model.DisplayVatNumber = _taxSettings.EuVatEnabled;
             model.VatRequired = _taxSettings.VatRequired;
-            //form fields
-            model.GenderEnabled = _customerSettings.GenderEnabled;
-            model.DateOfBirthEnabled = _customerSettings.DateOfBirthEnabled;
-			model.FirstNameRequired = _customerSettings.FirstNameRequired;
-			model.LastNameRequired = _customerSettings.LastNameRequired;
-			model.CompanyEnabled = _customerSettings.CompanyEnabled;
-            model.CompanyRequired = _customerSettings.CompanyRequired;
-            model.StreetAddressEnabled = _customerSettings.StreetAddressEnabled;
-            model.StreetAddressRequired = _customerSettings.StreetAddressRequired;
-            model.StreetAddress2Enabled = _customerSettings.StreetAddress2Enabled;
-            model.StreetAddress2Required = _customerSettings.StreetAddress2Required;
-            model.ZipPostalCodeEnabled = _customerSettings.ZipPostalCodeEnabled;
-            model.ZipPostalCodeRequired = _customerSettings.ZipPostalCodeRequired;
-            model.CityEnabled = _customerSettings.CityEnabled;
-            model.CityRequired = _customerSettings.CityRequired;
-            model.CountryEnabled = _customerSettings.CountryEnabled;
-            model.StateProvinceEnabled = _customerSettings.StateProvinceEnabled;
-            model.PhoneEnabled = _customerSettings.PhoneEnabled;
-            model.PhoneRequired = _customerSettings.PhoneRequired;
-            model.FaxEnabled = _customerSettings.FaxEnabled;
-            model.FaxRequired = _customerSettings.FaxRequired;
-            model.NewsletterEnabled = _customerSettings.NewsletterEnabled;
+
+            // Form fields.
+            MiniMapper.Map(_customerSettings, model);
+            
             model.UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email;
-            model.CheckUsernameAvailabilityEnabled = _customerSettings.CheckUsernameAvailabilityEnabled;
             model.DisplayCaptcha = _captchaSettings.CanDisplayCaptcha && _captchaSettings.ShowOnRegistrationPage;
 
             if (_customerSettings.CountryEnabled)
@@ -1291,12 +1289,19 @@ namespace SmartStore.Web.Controllers
         #region Orders
 
         [RewriteUrl(SslRequirement.Yes)]
-        public ActionResult Orders(int? page)
+        public ActionResult Orders(int? page, int? recurringPaymentsPage)
         {
             if (!IsCurrentUserRegistered())
+            {
                 return new HttpUnauthorizedResult();
+            }
 
-            var model = PrepareCustomerOrderListModel(_workContext.CurrentCustomer, Math.Max((page ?? 0) - 1, 0));
+            var ordersPageIndex = Math.Max((page ?? 0) - 1, 0);
+            var rpPageIndex = Math.Max((recurringPaymentsPage ?? 0) - 1, 0);
+
+            var model = PrepareCustomerOrderListModel(_workContext.CurrentCustomer, ordersPageIndex, rpPageIndex);
+            model.OrdersPage = page;
+            model.RecurringPaymentsPage = recurringPaymentsPage;
 
             return View(model);
         }
@@ -1306,10 +1311,12 @@ namespace SmartStore.Web.Controllers
         public ActionResult CancelRecurringPayment(FormCollection form)
         {
             if (!IsCurrentUserRegistered())
+            {
                 return new HttpUnauthorizedResult();
+            }
 
-            //get recurring payment identifier
-            int recurringPaymentId = 0;
+            // Get recurring payment identifier.
+            var recurringPaymentId = 0;
 			foreach (var formValue in form.AllKeys)
 			{
 				if (formValue.StartsWith("cancelRecurringPayment", StringComparison.InvariantCultureIgnoreCase))
@@ -1329,7 +1336,7 @@ namespace SmartStore.Web.Controllers
             {
                 var errors = _orderProcessingService.CancelRecurringPayment(recurringPayment);
 
-                var model = PrepareCustomerOrderListModel(customer, 0);
+                var model = PrepareCustomerOrderListModel(customer, 0, 0);
                 model.CancelRecurringPaymentErrors = errors;
 
                 return View(model);
@@ -1562,7 +1569,7 @@ namespace SmartStore.Web.Controllers
             }
 
 			var model = new CustomerAvatarEditModel();
-            model.Avatar = _workContext.CurrentCustomer.ToAvatarModel(_genericAttributeService, _pictureService, _customerSettings, _mediaSettings, Url, null, true);
+            model.Avatar = _workContext.CurrentCustomer.ToAvatarModel(_genericAttributeService, _customerSettings, _mediaSettings, null, true);
             model.MaxFileSize = Prettifier.BytesToString(_customerSettings.AvatarMaximumSizeBytes);
 
             return View(model);
@@ -1574,33 +1581,42 @@ namespace SmartStore.Web.Controllers
 			var success = false;
 			string avatarUrl = null;
 
-			if (IsCurrentUserRegistered() && _customerSettings.AllowCustomersToUploadAvatars)
-			{
-				var customer = _workContext.CurrentCustomer;
-				var uploadedFile = Request.Files["uploadedFile-file"].ToPostedFileResult();
+            try {
 
-				if (uploadedFile != null && uploadedFile.FileName.HasValue())
-				{
-					if (uploadedFile.Size > _customerSettings.AvatarMaximumSizeBytes)
-					{
-						throw new SmartException(T("Account.Avatar.MaximumUploadedFileSize", Prettifier.BytesToString(_customerSettings.AvatarMaximumSizeBytes)));
-					}
+                if (IsCurrentUserRegistered() && _customerSettings.AllowCustomersToUploadAvatars)
+                {
+                    var customer = _workContext.CurrentCustomer;
+                    var uploadedFile = Request.Files["file[0]"].ToPostedFileResult();
 
-					var customerAvatar = _pictureService.GetPictureById(customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId));
-					if (customerAvatar != null)
-					{
-						// Remove from cache.
-						_pictureService.DeletePicture(customerAvatar);
-					}
+                    if (uploadedFile != null && uploadedFile.FileName.HasValue())
+                    {
+                        if (uploadedFile.Size > _customerSettings.AvatarMaximumSizeBytes)
+                        {
+                            throw new SmartException(T("Account.Avatar.MaximumUploadedFileSize", Prettifier.BytesToString(_customerSettings.AvatarMaximumSizeBytes)));
+                        }
 
-					customerAvatar = _pictureService.InsertPicture(uploadedFile.Buffer, uploadedFile.ContentType, null, false, album: "customer");
+                        var oldAvatar = _mediaService.GetFileById(customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId));
+	                    if (oldAvatar != null)
+	                    {
+	                        _mediaService.DeleteFile(oldAvatar.File, true);
+	                    }
 
-					_genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.AvatarPictureId, customerAvatar.Id);
+	                    var path = _mediaService.CombinePaths(SystemAlbumProvider.Customers, uploadedFile.FileName.ToValidFileName());
+	                    var newAvatar = _mediaService.SaveFile(path, uploadedFile.Stream, false, DuplicateFileHandling.Rename);
+	                    if (newAvatar != null)
+	                    {
+	                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.AvatarPictureId, newAvatar.Id);
 
-					avatarUrl = _pictureService.GetUrl(customerAvatar.Id, _mediaSettings.AvatarPictureSize, false);
-					success = avatarUrl.HasValue();
-				}
-			}
+	                        avatarUrl = _mediaService.GetUrl(newAvatar, _mediaSettings.AvatarPictureSize, null, false);
+	                        success = avatarUrl.HasValue();
+	                    }
+                    }
+                }
+            }
+            catch
+            {
+                throw;
+            }
 
 			return Json(new { success, avatarUrl });
 		}
@@ -1612,18 +1628,18 @@ namespace SmartStore.Web.Controllers
 
             if (IsCurrentUserRegistered() && _customerSettings.AllowCustomersToUploadAvatars)
 			{
-				var customerAvatar = _pictureService.GetPictureById(customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId));
-				if (customerAvatar != null)
-				{
-					_pictureService.DeletePicture(customerAvatar);
-				}
+                var avatar = _mediaService.GetFileById(customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId));
+                if (avatar != null)
+                {
+                    _mediaService.DeleteFile(avatar.File, true);
+                }
 
 				_genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.AvatarPictureId, 0);
                 _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.AvatarColor, (string)null);
 			}
 
-            return RedirectToAction("Avatar");
-		}
+            return Json(new { success = true });
+        }
 
         #endregion
 

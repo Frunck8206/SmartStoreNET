@@ -1,16 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Web.Mvc;
+using SmartStore.Core;
 using SmartStore.Core.Domain.Blogs;
 using SmartStore.Core.Domain.Catalog;
 using SmartStore.Core.Domain.Common;
 using SmartStore.Core.Domain.Customers;
 using SmartStore.Core.Domain.Forums;
 using SmartStore.Core.Domain.Localization;
-using SmartStore.Core.Domain.Media;
-using SmartStore.Core.Domain.Messages;
 using SmartStore.Core.Domain.News;
 using SmartStore.Core.Domain.Orders;
 using SmartStore.Core.Domain.Seo;
@@ -53,9 +51,13 @@ namespace SmartStore.Web.Controllers
         private readonly Lazy<IGenericAttributeService> _genericAttributeService;
 		private readonly Lazy<IUrlRecordService> _urlRecordService;
 		private readonly IPageAssetsBuilder _pageAssetsBuilder;
-		private readonly Lazy<IPictureService> _pictureService;
+        private readonly Lazy<IMediaService> _mediaService;
+        private readonly ICookieManager _cookieManager;
+        private readonly IGeoCountryLookup _geoCountryLookup;
+        private readonly IWebHelper _webHelper;
+        private readonly ICountryService _countryService;
 
-		private readonly CustomerSettings _customerSettings;
+        private readonly CustomerSettings _customerSettings;
 		private readonly PrivacySettings _privacySettings;
 		private readonly TaxSettings _taxSettings;
         private readonly CatalogSettings _catalogSettings;
@@ -67,8 +69,8 @@ namespace SmartStore.Web.Controllers
         private readonly ForumSettings _forumSettings;
         private readonly LocalizationSettings _localizationSettings;
 		private readonly Lazy<SocialSettings> _socialSettings;
-		
-		public CommonController(
+
+        public CommonController(
 			Lazy<ILanguageService> languageService,
             Lazy<ICurrencyService> currencyService,
 			IThemeContext themeContext,
@@ -77,8 +79,8 @@ namespace SmartStore.Web.Controllers
             Lazy<IGenericAttributeService> genericAttributeService, 
 			Lazy<IUrlRecordService> urlRecordService,
 			IPageAssetsBuilder pageAssetsBuilder,
-			Lazy<IPictureService> pictureService,
-			CustomerSettings customerSettings,
+            Lazy<IMediaService> mediaService,
+            CustomerSettings customerSettings,
 			PrivacySettings privacySettings,
 			TaxSettings taxSettings, 
 			CatalogSettings catalogSettings,
@@ -89,7 +91,11 @@ namespace SmartStore.Web.Controllers
 			ForumSettings forumSettings,
             LocalizationSettings localizationSettings, 
 			Lazy<SocialSettings> socialSettings,
-            ThemeSettings themeSettings)
+            ThemeSettings themeSettings,
+            ICookieManager cookieManager,
+            IGeoCountryLookup geoCountryLookup,
+            IWebHelper webHelper,
+            ICountryService countryService)
         {
             _languageService = languageService;
             _currencyService = currencyService;
@@ -99,7 +105,7 @@ namespace SmartStore.Web.Controllers
             _genericAttributeService = genericAttributeService;
 			_urlRecordService = urlRecordService;
 			_pageAssetsBuilder = pageAssetsBuilder;
-			_pictureService = pictureService;
+            _mediaService = mediaService;
 			_customerSettings = customerSettings;
 			_privacySettings = privacySettings;
 			_taxSettings = taxSettings;
@@ -112,7 +118,11 @@ namespace SmartStore.Web.Controllers
             _localizationSettings = localizationSettings;
 			_socialSettings = socialSettings;
             _themeSettings = themeSettings;
-		}
+            _cookieManager = cookieManager;
+            _geoCountryLookup = geoCountryLookup;
+            _webHelper = webHelper;
+            _countryService = countryService;
+        }
 
         #region Utilities
 
@@ -274,19 +284,23 @@ namespace SmartStore.Web.Controllers
         [ChildActionOnly]
         public ActionResult Logo()
         {
-			var logoPictureInfo = _pictureService.Value.GetPictureInfo(Services.StoreContext.CurrentStore.LogoMediaFileId);
-			var hasLogo = logoPictureInfo != null;
+            var store = Services.StoreContext.CurrentStore;
+            var logo = _mediaService.Value.GetFileById(store.LogoMediaFileId, MediaLoadFlags.AsNoTracking);
 
-			var model = new ShopHeaderModel
-			{
-				LogoUploaded = hasLogo,
-				LogoUrl = _pictureService.Value.GetUrl(logoPictureInfo, 0, FallbackPictureType.NoFallback),
-				LogoWidth = logoPictureInfo?.Width ?? 0,
-				LogoHeight = logoPictureInfo?.Height ?? 0,
-				LogoTitle = Services.StoreContext.CurrentStore.Name
+            var model = new ShopHeaderModel
+            {
+                LogoUploaded = logo != null,
+				LogoTitle = store.Name
 			};
 
-			return PartialView(model);
+            if (logo != null)
+            {
+                model.LogoUrl = _mediaService.Value.GetUrl(logo, 0, null, false);
+                model.LogoWidth = logo.Dimensions.Width;
+                model.LogoHeight = logo.Dimensions.Height;
+            }
+
+            return PartialView(model);
         }
 
         public ActionResult SetLanguage(int langid, string returnUrl = "")
@@ -757,17 +771,7 @@ namespace SmartStore.Web.Controllers
 
 				model.StoreName = store.Name;
 				model.StoreUrl = store.Url;
-
-				var logoPicture = _pictureService.Value.GetPictureById(pdfSettings.LogoPictureId);
-				if (logoPicture == null)
-				{
-					logoPicture = _pictureService.Value.GetPictureById(store.LogoMediaFileId);
-				}
-
-				if (logoPicture != null)
-				{
-					model.LogoUrl = _pictureService.Value.GetUrl(logoPicture, 0, false);
-				}
+                model.LogoId = pdfSettings.LogoPictureId != 0 ? pdfSettings.LogoPictureId : store.LogoMediaFileId;
 
 				model.MerchantCompanyInfo = companyInfoSettings;
 				model.MerchantBankAccount = bankSettings;
@@ -778,48 +782,89 @@ namespace SmartStore.Web.Controllers
 			}, TimeSpan.FromMinutes(1) /* 1 min. (just for the duration of pdf processing) */);
 		}
 
-		[ChildActionOnly]
-		public ActionResult CookieConsentBadge()
-		{
-			if (!_privacySettings.EnableCookieConsent)
-			{
-				return new EmptyResult();
-			}
+        #region CookieManager
 
-            if (CookieConsent.GetStatus(this.ControllerContext.ParentActionViewContext) != CookieConsentStatus.Asked)
+        public ActionResult CookieManager()
+        {
+            if (!_privacySettings.EnableCookieConsent)
             {
                 return new EmptyResult();
             }
 
-            var model = new CookieConsentModel();
+            // If current country doesnt need cookie consent, don't display cookie manager.
+            if (!DisplayForCountry())
+            {
+                return new EmptyResult();
+            }
 
-			if (!_privacySettings.CookieConsentBadgetext.HasValue())
-			{
-				// Loads default value if it's empty (must be done this way as localized values can't be initial values of settings)
-				model.BadgeText = T("CookieConsent.BadgeText", Services.StoreContext.CurrentStore.Name, Url.Topic("PrivacyInfo"));
-			}
-			else
-			{
-				model.BadgeText = _privacySettings.GetLocalized(x => x.CookieConsentBadgetext).Value.FormatWith(Services.StoreContext.CurrentStore.Name, Url.Topic("PrivacyInfo"));
-			}
+            var cookieData = _cookieManager.GetCookieData(this.ControllerContext);
 
-			return PartialView(model);
-		}
+            if (cookieData != null && !HttpContext.Request.IsAjaxRequest())
+            {
+                return new EmptyResult();
+            }
 
-		[HttpPost]
-		public ActionResult SetCookieConsentBadge(CookieConsentModel model)
-		{
-			CookieConsent.SetCookie(Response, CookieConsentStatus.Consented);
+            var model = new CookieManagerModel();
 
-			if (!HttpContext.Request.IsAjaxRequest() && !ControllerContext.IsChildAction)
-			{
-				return RedirectToReferrer();
-			}
+            PrepareCookieManagerModel(model);
+
+            return PartialView(model);
+        }
+
+        private bool DisplayForCountry()
+        {
+            var ipAddress = _webHelper.GetCurrentIpAddress();
+            var lookUpCountryResponse = _geoCountryLookup.LookupCountry(ipAddress);
+            if (lookUpCountryResponse == null || lookUpCountryResponse.IsoCode == null)
+            {
+                // No country was found (e.g. localhost), so we better return true.
+                return true;
+            }
+
+            var country = _countryService.GetCountryByTwoLetterIsoCode(lookUpCountryResponse.IsoCode);
+
+            if (country != null && country.DisplayCookieManager)
+            {
+                // Country was configured to display cookie manager.
+                return true;
+            }
+
+            return false;
+        }
+
+        private void PrepareCookieManagerModel(CookieManagerModel model)
+        {
+            // Get cookie infos from plugins.
+            model.CookiesInfos = _cookieManager.GetAllCookieInfos();
+
+            var cookie = _cookieManager.GetCookieData(this.ControllerContext);
+            
+            model.AnalyticsConsent = cookie != null ? cookie.AllowAnalytics : false;
+            model.ThirdPartyConsent = cookie != null ? cookie.AllowThirdParty : false;
+        }
+
+        [HttpPost]
+        public ActionResult SetCookieManagerConsent(CookieManagerModel model)
+        {
+            if (model.AcceptAll)
+            {
+                model.AnalyticsConsent = true;
+                model.ThirdPartyConsent = true;
+            }
+
+            _cookieManager.SetConsentCookie(Response, model.AnalyticsConsent, model.ThirdPartyConsent);
+
+            if (!HttpContext.Request.IsAjaxRequest() && !ControllerContext.IsChildAction)
+            {
+                return RedirectToReferrer();
+            }
 
             return Json(new { Success = true });
         }
 
-		[ChildActionOnly]
+        #endregion
+
+        [ChildActionOnly]
 		public ActionResult GdprConsent(bool isSmall)
 		{
 			if (!_privacySettings.DisplayGdprConsentOnForms)

@@ -1,35 +1,109 @@
 # Release Notes
 
-## SmartStore.NET 4.0.0
+## Smartstore 4.1.0
+### New Features
+* #2012 Added paging and sorting for bestsellers report.
+* #2014 Added paging and sorting for top customers report.
+* #1735 Added a setting to open a product directly if the search term matches a SKU, MPN or GTIN.
+* #1239 Added configurability for password strength.
+* #1678 Determine initial working currency based on IP/country.
+* #1697 Added picture and color options to checkout attribute values.
+* #1788 Added setting to restrict order amount in general and for customer roles in specific.
+
+### Improvements
+* #1981 Added grouping for cart rules.
+* #1407 Added menu to set order and payment status for orders checked in backend grid.
+* #1778 Back button closes offcanvas menu/cart.
+
+### Bugfixes
+* **Media Manager**
+	* The file date should be displayed in local time and not in UTC.
+* **Page Builder**
+	* Reveal effect on story block conflicted with nested block reveal effects
+
+
+## Smartstore 4.0.1
+### New Features
+
+- Check on app startup whether any plugin has changed and refresh all plugin locale resources.
+
+### Improvements
+* Theming: minimal but effective tweaks (rounding, shadows, typo)
+* (SEO) (PERF) Preload logo to prevent flashing and web fonts to avoid FOUT on slow internet connection
+* **Rule Builder**:
+	* #1969 The preview grid is now displayed in a modal dialog.
+	* Added more cart rules: weekday, total quantity of products in cart.
+	* Added list with example values for browser, operating system and device family rule.
+* #1995 The localized ALT text of media files is now respected for all frontend images.
+* SEO: most images in frontend now carry `loading="lazy"` attribute which loads images only when they enter visible viewport.
+* **Media Manager**:
+	* Improved image lazy loading behavior.
+	* The reference table of a file now remains open if its data has been loaded.
+	* Migration: detect duplicate file names.
+* Improved handling of customer roles, e.g. paging for customer role grid.
+* (PERF) Use direct SQL to delete guest customers.
+* Blog & News items: Unpublished items are visible for shop admins now
+
+
+### Bugfixes
+* Order placement validation now also checks whether the selected payment method has been filtered out.
+* #1976 The button to cancel recurring payments in my-account was out of function.
+* (pb) Flat Box did not invert text color if concrete colors were specified for text parts
+* (mm) Store logo is handled by "content" album, not "file"
+* (mm) Tracker tracks only the last media file property
+* (mm) Migration: `Download` entity was teared down too early in the migration process.
+* (perf) Plugin hash calculation was broken in a way that every plugin was redeployed on each app startup
+* A cart rule was not applied if more than one cart rule was assigned to an object.
+* MegaSearch: fixed the incorrect featured sorting.
+* Added missing paging for shipment list.
+* #2009 "Show all" link in top brands list is always rendered in new line but should be last item in last row.
+
+
+## Smartstore 4.0.0
 ### Highlights
-* (NEW) **Granular permissions**: Extensive permission management based on customer groups via tree view. Supports inheritance to allow or deny entire permission ranges.
-* (NEW) **Granular permissions**: All permissions of a customer directly visible on the customer edit page.
+* (NEW) **Media Manager**: Powerful and lightning-fast explorer/manager for media files (commercial plugin exclusively bundled with Pro Edition)
+* (NEW) **Rule Builder**: Powerful rule system for visual business rule creation
+  * Dozens of predefined rules out-of-the-box
+  * Supports logical operators (AND/OR) and unlimited grouping/nesting
+  * Cart rules: can be applied to discounts, shipping and payment methods
+  * Customer rules: used to auto-assign customers to customer groups for 1-to-1 content targeting
+  * Product rules: used to auto-assign products to categories based on filter definitions (e.g. price, brand, color, stock etc.)
+* (NEW) **New permission (ACL) system**: Granular tree-based permission management based on customer groups. Supports inheritance to allow or deny entire permission ranges
+* (NEW) **Personalized product recommendations**: Replaces homepage products dynamically with personalized product recommendations based on customer interests. (commercial plugin)
+* (NEW) **Geo Blocker**: Restricts shop access based on visitor country or IP address ranges (commercial plugin)
+* (NEW) **Dashboard with charts**: New dashboard widgets display key data like orders, customers, bestsellers etc. in nice graphical charts. 
 
 ### Breaking changes
-* *Install\UninstallPermissions* has been removed from *IPermissionService*. No longer needs to be called by plugins. Permissions are now automatically installed\uninstalled.
-* *IDiscountRequirementRule* and *IShippingMethodFilter* has been removed. Discounts and shipping methods can now be filtered by rule sets.
-* Customer navigation property *CustomerRoles* has been replaced by *CustomerRoleMappings*, a new entity for role mappings.
-* Search index must be recreated if numeric values are used for specification attributes.
+* (Dev) *Install\UninstallPermissions* has been removed from *IPermissionService*. No longer needs to be called by plugins. Permissions are now automatically installed\uninstalled.
+* (Dev) *IDiscountRequirementRule* and *IShippingMethodFilter* has been removed. Discounts and shipping methods can now be filtered by rule sets.
+* (Dev) Customer navigation property *CustomerRoles* has been replaced by *CustomerRoleMappings*, a new entity for role mappings.
+* The search index must be rebuilt due to various enhancements.
+* (Dev) The wrong name of API endpoint *LocalizedPropertys* has been corrected and renamed to *LocalizedProperties*.
 
 ### New Features
+* **Granular permissions**: All permissions of a customer directly visible on the customer edit page.
+* DEV: Added Visual Studio extension to create Smartstore Plugins
+* GDPR conform Cookie Consent Manager
+* SEO: XML Sitemap now includes blog, news and forum
+* SEO: do 301 redirect to URL without trailing slash
+* SVG support for image uploads.
+* Schedule tasks: new property "Priority" runs tasks with higher priority first when multiple tasks are pending.
+* #1805 Added XML Sitemap settings to backend UI.
 * #1598 Add published property to ProductTag entity.
 * #1669 Apply percentage discounts also on tier prices.
 * #1618 Implement ACL and multistore capability on menu item level.
 * #1683 Menu Builder items: implement support for icon (brand) color.
 * #1584 Show bundle item images in order details like in shopping cart details.
-* SEO: XML Sitemap now includes blog, news and forum
-* SEO: do 301 redirect to URL without trailing slash
-* SVG support for image uploads.
-* Schedule tasks: new property "Priority" runs tasks with higher priority first when multiple tasks are pending.
 * **MegaSearch**:
-	* Added more text analysis options.
+	* Added more text analysis options (e.g. Lucene.Net classic analyzer).
 	* Added tool to display internal information about a search, such as Lucene.Net terms.
 	* #1693 Find the grouped product when searching for the SKU, GTIN, MPN of a non individually visible, associated product.
 	* #1711 Find product when searching for GTIN or MPN of an attribute combination.
 	* Perf. Added option to ignore attribute filtering property on product level.
 * **Web-API**:
 	* #1809 Added a parameter to start an import after uploading import files.
-	* #1801 Added endpoints for ProductPicture, ProductCategory, ProductManufacturer to allow to update DisplayOrder.
+	* #1801 Added endpoints for *ProductPictures*, *ProductCategories* and *ProductManufacturers* to allow updating *DisplayOrder*.
+	* #1858 Added endpoints for *NewsLetterSubscription*.
 * #1714 Direct links to variations on a product.
 * #1733 Add ability to hide products from catalog, but not search.
 * #1754 Implement hidden boolean setting that controls which catalog search engine implementation should be used in backend.
@@ -38,9 +112,10 @@
 * #1116 Add new field for product condition.
 * #1790 ACL support for manufacturers.
 * #1616 Add new field for tracking URL to shipment entity to better track shipments.
+* (Page Builder) Added a Page Builder block to display blog posts.
 
 ### Improvements
-* #1663 Make MeasureDimension and MeasureWeight localizable.
+* #1663 Make *MeasureDimension* and *MeasureWeight* localizable.
 * #1600 Show an example currency value for custom formatting value changes.
 * Card desk instead of a grid for customer addresses on customer edit page.
 * Display "price from" in product lists if any attribute combination price exists.
@@ -49,8 +124,20 @@
 * #1752 Export: let a provider directly export to a file stream instead of a memory stream.
 * #1763 Topic editor should display all menu item nodes that reference the current topic.
 * #1665 UI: ACL, discount and store selection should be done via multiple select2.
-* Updated UserAgent Parser
-* TinyImage: updated WebP detection patterns
+* Updated UserAgent Parser.
+* TinyImage: updated WebP detection patterns.
+* **PayPal PLUS**:
+	* Apply order of payment methods in backend to the list of third-party payment methods in checkout.
+	* #1848 Send the billing address when redirecting to PayPal.
+* Hide cart payment button for payment methods without match of applied rule sets.
+* #1839 MegaSearch: Support exact value match for numeric range filters.
+* #1920 Hide option prizes if "Call for price" is enabled.
+* Debitoor: added an option to force a price type on invoices.
+* BeezUp: export product costs.
+* #1915 RTL: fixed alignment of product art badge.
+* #1738 Sending of mails to customers uses generic message template now.
+* #1805 UI: Added XmlSitemap settings to backend
+* And many more other minor improvements
 
 ### Bugfixes
 * Export: Fixed KeyNotFoundException when batch size was 1.
@@ -65,18 +152,25 @@
 * **Page Builder**:
 	* #1689 Block with z-index < 0 can not be selected in story view - Block tools can reduce z-index below 0.
 	* #1691 Manually editing/removing block cols/rows does not refresh grid state correctly.
+	* #1684 Edit Mode rendering bug in Mac Safari
+	* #1836 Added "Order" property to page Builder block to control rendering order of blocks in HTML output
 * **PayPal**:
 	* Fixed rare exception "Unsupported Media Type" (415) in PayPal PLUS.
 	* Only process a partially refund IPN when the order refunded amount is zero. Otherwise the order refunded amount will be wrong.
 * **Customer import**:
 	* VatNumber and other fields were ignored.
 	* Customer roles sometimes inserted several times.
-	* Changed billing\shipping address was added instead of updating the existing one.
+	* Changed billing/shipping address was added instead of updating the existing one.
 	* Region assigned to an address was not updated.
+* **Product tags**:
+	* #1730 Product tag count should filter also based on Visibility.
+	* Product tag count sometimes not up-to-date due to missing cache clearance.
+* **Debitoor**:
+	* Avoid errors due to invalid quantity unit Id of 0.
+	* #1952 rework quantity units.
+	* Sometimes the SKU was missing on invoices.
 * Multistore mapping was ignored for manufacturers in sitemap.
-* #1730 Product tag count should filter also based on Visibility.
 * Categories limited to stores were not displayed in tree view.
-* Debitoor: avoid errors due to invalid product unitId of 0.
 * Fixed InvalidOperationException in CreatePdfInvoiceAttachment when an order is placed by a guest.
 * The ShowDescriptionInSubPages setting should also be applied to the bottom category description.
 * #1774 Recaptcha: doesn't work for product reviews, blog and news comments if hidden captcha is activated.
@@ -90,6 +184,19 @@
 * #1794 Menu display order is ignored for widget zone header_menu_special_after.
 * #1451 RTL: Manage categories tree view.
 * Biz-Importer: If the TaxRate table was missing, the assignment of the tax category to the product was not set.
+* #1832 Import: adding URL records requires cache to be cleared.
+* #1818 The order list summary do not respect all list filters and shows wrong aggregate values.
+* #1835 Removing gift card issue.
+* #1875 A delivery time cannot be deleted if it is assigned to a variant combination of a deleted product.
+* BeezUp: fixes ArgumentNullException, parameter name "source".
+* #1743 Avoid redirecting to the account activation page when trying to log in for the first time.
+* #1895 The checkout button disappears when moving a product from the shopping cart to the wishlist.
+* Menu builder: in case of system menus the template can changes accidentally when saving.
+* Structured data: Replace length with depth property.
+* #1701 'View All' button from the offcanvas manufacturer menu causes 404 on mobile.
+* Added missing sitemap task.
+* #1696 ESD: browser freezes when editing file changelog
+* And many more other minor fixes...
 
 
 ## SmartStore.NET 3.2.2

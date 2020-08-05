@@ -1,22 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Web.Mvc;
 using Newtonsoft.Json;
 using SmartStore.Admin.Models.Common;
 using SmartStore.Admin.Models.Customers;
+using SmartStore.Admin.Models.Dashboard;
 using SmartStore.Admin.Models.ShoppingCart;
 using SmartStore.Core.Data;
 using SmartStore.Core.Domain.Common;
 using SmartStore.Core.Domain.Customers;
 using SmartStore.Core.Domain.Forums;
-using SmartStore.Core.Domain.Messages;
 using SmartStore.Core.Domain.Orders;
 using SmartStore.Core.Domain.Payments;
 using SmartStore.Core.Domain.Shipping;
 using SmartStore.Core.Domain.Tax;
-using SmartStore.Core.Email;
 using SmartStore.Core.Security;
 using SmartStore.Services;
 using SmartStore.Services.Affiliates;
@@ -38,6 +38,7 @@ using SmartStore.Web.Framework.Modelling;
 using SmartStore.Web.Framework.Plugins;
 using SmartStore.Web.Framework.Security;
 using Telerik.Web.Mvc;
+using static SmartStore.Services.Customers.CustomerReportService;
 
 namespace SmartStore.Admin.Controllers
 {
@@ -62,7 +63,6 @@ namespace SmartStore.Admin.Controllers
         private readonly IOrderService _orderService;
         private readonly IPriceCalculationService _priceCalculationService;
         private readonly AdminAreaSettings _adminAreaSettings;
-        private readonly IQueuedEmailService _queuedEmailService;
         private readonly IEmailAccountService _emailAccountService;
         private readonly ForumSettings _forumSettings;
         private readonly IForumService _forumService;
@@ -71,6 +71,7 @@ namespace SmartStore.Admin.Controllers
         private readonly PluginMediator _pluginMediator;
         private readonly IAffiliateService _affiliateService;
         private readonly Lazy<IGdprTool> _gdprTool;
+        private readonly IDateTimeHelper _dateTimeHelper;
 
         public CustomerController(
             ICommonServices services,
@@ -78,28 +79,28 @@ namespace SmartStore.Admin.Controllers
             INewsLetterSubscriptionService newsLetterSubscriptionService,
             IGenericAttributeService genericAttributeService,
             ICustomerRegistrationService customerRegistrationService,
-            ICustomerReportService customerReportService, 
+            ICustomerReportService customerReportService,
             DateTimeSettings dateTimeSettings,
-            TaxSettings taxSettings, 
+            TaxSettings taxSettings,
             RewardPointsSettings rewardPointsSettings,
-            ICountryService countryService, 
+            ICountryService countryService,
             IStateProvinceService stateProvinceService,
             IAddressService addressService,
-            CustomerSettings customerSettings, 
+            CustomerSettings customerSettings,
             ITaxService taxService,
             IPriceFormatter priceFormatter,
             IOrderService orderService,
             IPriceCalculationService priceCalculationService,
             AdminAreaSettings adminAreaSettings,
-            IQueuedEmailService queuedEmailService,
-            IEmailAccountService emailAccountService, 
+            IEmailAccountService emailAccountService,
             ForumSettings forumSettings,
-            IForumService forumService, 
+            IForumService forumService,
             IOpenAuthenticationService openAuthenticationService,
-            AddressSettings addressSettings, 
+            AddressSettings addressSettings,
             PluginMediator pluginMediator,
             IAffiliateService affiliateService,
-            Lazy<IGdprTool> gdprTool)
+            Lazy<IGdprTool> gdprTool,
+            IDateTimeHelper dateTimeHelper)
         {
             _services = services;
             _customerService = customerService;
@@ -119,7 +120,6 @@ namespace SmartStore.Admin.Controllers
             _orderService = orderService;
             _priceCalculationService = priceCalculationService;
             _adminAreaSettings = adminAreaSettings;
-            _queuedEmailService = queuedEmailService;
             _emailAccountService = emailAccountService;
             _forumSettings = forumSettings;
             _forumService = forumService;
@@ -128,6 +128,7 @@ namespace SmartStore.Admin.Controllers
             _pluginMediator = pluginMediator;
             _affiliateService = affiliateService;
             _gdprTool = gdprTool;
+            _dateTimeHelper = dateTimeHelper;
         }
 
         #region Utilities
@@ -146,34 +147,6 @@ namespace SmartStore.Admin.Controllers
                 }
             }
             return sb.ToString();
-        }
-
-        [NonAction]
-        protected IList<RegisteredCustomerReportLineModel> GetReportRegisteredCustomersModel()
-        {
-            var report = new List<RegisteredCustomerReportLineModel>();
-            report.Add(new RegisteredCustomerReportLineModel()
-            {
-                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.7days"),
-                Customers = _customerReportService.GetRegisteredCustomersReport(7)
-            });
-            report.Add(new RegisteredCustomerReportLineModel()
-            {
-                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.14days"),
-                Customers = _customerReportService.GetRegisteredCustomersReport(14)
-            });
-            report.Add(new RegisteredCustomerReportLineModel()
-            {
-                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.month"),
-                Customers = _customerReportService.GetRegisteredCustomersReport(30)
-            });
-            report.Add(new RegisteredCustomerReportLineModel()
-            {
-                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.year"),
-                Customers = _customerReportService.GetRegisteredCustomersReport(365)
-            });
-
-            return report;
         }
 
         [NonAction]
@@ -371,32 +344,51 @@ namespace SmartStore.Admin.Controllers
                 .ToList();
         }
 
-        [NonAction]
-        protected string ValidateCustomerRoles(IList<CustomerRole> customerRoles)
+        private string ValidateCustomerRoles(int[] selectedCustomerRoleIds, List<int> allCustomerRoleIds, out List<CustomerRole> newCustomerRoles)
         {
-            if (customerRoles == null)
-                throw new ArgumentNullException("customerRoles");
+            Guard.NotNull(allCustomerRoleIds, nameof(allCustomerRoleIds));
 
-            //ensure a customer is not added to both 'Guests' and 'Registered' customer roles
-            //ensure that a customer is in at least one required role ('Guests' and 'Registered')
-            bool isInGuestsRole = customerRoles.FirstOrDefault(cr => cr.SystemName == SystemCustomerRoleNames.Guests) != null;
-            bool isInRegisteredRole = customerRoles.FirstOrDefault(cr => cr.SystemName == SystemCustomerRoleNames.Registered) != null;
+            newCustomerRoles = new List<CustomerRole>();
+
+            var newCustomerRoleIds = new HashSet<int>();
+
+            if (selectedCustomerRoleIds != null)
+            {
+                foreach (var roleId in allCustomerRoleIds)
+                {
+                    if (selectedCustomerRoleIds.Contains(roleId))
+                    {
+                        newCustomerRoleIds.Add(roleId);
+                    }
+                }
+            }
+
+            if (newCustomerRoleIds.Any())
+            {
+                var customerRolesQuery = _customerService.GetAllCustomerRoles(true).SourceQuery;
+                newCustomerRoles = customerRolesQuery.Where(x => newCustomerRoleIds.Contains(x.Id)).ToList();
+            }
+
+            var isInGuestsRole = newCustomerRoles.FirstOrDefault(cr => cr.SystemName == SystemCustomerRoleNames.Guests) != null;
+            var isInRegisteredRole = newCustomerRoles.FirstOrDefault(cr => cr.SystemName == SystemCustomerRoleNames.Registered) != null;
+
+            // Ensure a customer is not added to both 'Guests' and 'Registered' customer roles.
             if (isInGuestsRole && isInRegisteredRole)
             {
-                //return "The customer cannot be in both 'Guests' and 'Registered' customer roles";
-                return String.Format(T("Admin.Customers.CanOnlyBeCustomerOrGuest"),
+                return string.Format(T("Admin.Customers.CanOnlyBeCustomerOrGuest"),
                     _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Guests).Name,
                     _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Registered).Name);
             }
+
+            // Ensure that a customer is in at least one required role ('Guests' and 'Registered').
             if (!isInGuestsRole && !isInRegisteredRole)
             {
-                //return "Add the customer to 'Guests' or 'Registered' customer role";
-                return String.Format(T("Admin.Customers.MustBeCustomerOrGuest"),
+                return string.Format(T("Admin.Customers.MustBeCustomerOrGuest"),
                     _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Guests).Name,
                     _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Registered).Name);
             }
-            //no errors
-            return "";
+
+            return string.Empty;
         }
 
         #endregion
@@ -412,36 +404,17 @@ namespace SmartStore.Admin.Controllers
         public ActionResult List()
         {
             // Load registered customers by default.
-            var allRoles = _customerService.GetAllCustomerRoles(true);
-            var registeredRoleId = allRoles.First(x => x.SystemName.IsCaseInsensitiveEqual(SystemCustomerRoleNames.Registered)).Id;
+            var registeredRole = _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Registered);
 
             var listModel = new CustomerListModel
             {
+                GridPageSize = _adminAreaSettings.GridPageSize,
                 UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email,
                 DateOfBirthEnabled = _customerSettings.DateOfBirthEnabled,
                 CompanyEnabled = _customerSettings.CompanyEnabled,
                 PhoneEnabled = _customerSettings.PhoneEnabled,
                 ZipPostalCodeEnabled = _customerSettings.ZipPostalCodeEnabled,
-                SearchCustomerRoleIds = registeredRoleId.ToString()
-            };
-
-            listModel.AvailableCustomerRoles = allRoles
-                .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
-                .ToList();
-
-            var q = new CustomerSearchQuery
-            {
-                CustomerRoleIds = new int[] { registeredRoleId },
-                PageSize = _adminAreaSettings.GridPageSize
-            };
-
-            var customers = _customerService.SearchCustomers(q);
-
-            // Customer list.
-            listModel.Customers = new GridModel<CustomerModel>
-            {
-                Data = customers.Select(PrepareCustomerModelForList),
-                Total = customers.TotalCount
+                SearchCustomerRoleIds = new int[] { registeredRole.Id }
             };
 
             return View(listModel);
@@ -456,7 +429,7 @@ namespace SmartStore.Admin.Controllers
 
             var q = new CustomerSearchQuery
             {
-                CustomerRoleIds = model.SearchCustomerRoleIds.ToIntArray(),
+                CustomerRoleIds = model.SearchCustomerRoleIds,
                 Email = model.SearchEmail,
                 Username = model.SearchUsername,
                 SearchTerm = model.SearchTerm,
@@ -500,36 +473,10 @@ namespace SmartStore.Admin.Controllers
         [Permission(Permissions.Customer.Create)]
         public ActionResult Create(CustomerModel model, bool continueEditing, FormCollection form)
         {
-            /// Validate unique user. <see cref="ICustomerRegistrationService.RegisterCustomer(CustomerRegistrationRequest)"/>
-            if (model.Email.HasValue() && _customerService.GetCustomerByEmail(model.Email) != null)
-            {
-                ModelState.AddModelError("", T("Account.Register.Errors.EmailAlreadyExists"));
-            }
-
-            if (model.Username.HasValue() &&
-                _customerSettings.CustomerLoginType != CustomerLoginType.Email &&
-                _customerService.GetCustomerByUsername(model.Username) != null)
-            {
-                ModelState.AddModelError("", T("Account.Register.Errors.UsernameAlreadyExists"));
-            }
-
             // Validate customer roles.
-            var allowManagingCustomerRoles = Services.Permissions.Authorize(Permissions.Customer.EditRole);
-            var allCustomerRoles = _customerService.GetAllCustomerRoles(true);
-            var newCustomerRoles = new List<CustomerRole>();
+            var allCustomerRoleIds = _customerService.GetAllCustomerRoles(true).SourceQuery.Select(x => x.Id).ToList();
 
-            if (model.SelectedCustomerRoleIds != null)
-            {
-                foreach (var customerRole in allCustomerRoles)
-                {
-                    if (model.SelectedCustomerRoleIds.Contains(customerRole.Id))
-                    {
-                        newCustomerRoles.Add(customerRole);
-                    }
-                }
-            }
-
-            var customerRolesError = ValidateCustomerRoles(newCustomerRoles);
+            var customerRolesError = ValidateCustomerRoles(model.SelectedCustomerRoleIds, allCustomerRoleIds, out var newCustomerRoles);
             if (customerRolesError.HasValue())
             {
                 ModelState.AddModelError("", customerRolesError);
@@ -578,55 +525,62 @@ namespace SmartStore.Admin.Controllers
                     }
                 }
 
-                _customerService.InsertCustomer(customer);
+                try
+                {
+                    _customerService.InsertCustomer(customer);
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", ex.Message);
+                }
 
                 // Form fields.
-                if (_dateTimeSettings.AllowCustomersToSetTimeZone)
-                    customer.TimeZoneId = model.TimeZoneId;
-                if (_customerSettings.GenderEnabled)
-                    customer.Gender = model.Gender;
-                if (_customerSettings.StreetAddressEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StreetAddress, model.StreetAddress);
-                if (_customerSettings.StreetAddress2Enabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StreetAddress2, model.StreetAddress2);
-                if (_customerSettings.ZipPostalCodeEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.ZipPostalCode, model.ZipPostalCode);
-                if (_customerSettings.CityEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.City, model.City);
-                if (_customerSettings.CountryEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.CountryId, model.CountryId);
-                if (_customerSettings.CountryEnabled && _customerSettings.StateProvinceEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StateProvinceId, model.StateProvinceId);
-                if (_customerSettings.PhoneEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.Phone, model.Phone);
-                if (_customerSettings.FaxEnabled)
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.Fax, model.Fax);
-
-                // Password.
-                if (model.Password.HasValue())
+                if (ModelState.IsValid)
                 {
-                    var changePassRequest = new ChangePasswordRequest(model.Email, false, _customerSettings.DefaultPasswordFormat, model.Password);
-                    var changePassResult = _customerRegistrationService.ChangePassword(changePassRequest);
-                    if (!changePassResult.Success)
+                    if (_dateTimeSettings.AllowCustomersToSetTimeZone)
+                        customer.TimeZoneId = model.TimeZoneId;
+                    if (_customerSettings.GenderEnabled)
+                        customer.Gender = model.Gender;
+                    if (_customerSettings.StreetAddressEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StreetAddress, model.StreetAddress);
+                    if (_customerSettings.StreetAddress2Enabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StreetAddress2, model.StreetAddress2);
+                    if (_customerSettings.ZipPostalCodeEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.ZipPostalCode, model.ZipPostalCode);
+                    if (_customerSettings.CityEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.City, model.City);
+                    if (_customerSettings.CountryEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.CountryId, model.CountryId);
+                    if (_customerSettings.CountryEnabled && _customerSettings.StateProvinceEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.StateProvinceId, model.StateProvinceId);
+                    if (_customerSettings.PhoneEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.Phone, model.Phone);
+                    if (_customerSettings.FaxEnabled)
+                        _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.Fax, model.Fax);
+
+                    // Password.
+                    if (model.Password.HasValue())
                     {
-                        foreach (var changePassError in changePassResult.Errors)
+                        var changePassRequest = new ChangePasswordRequest(model.Email, false, _customerSettings.DefaultPasswordFormat, model.Password);
+                        var changePassResult = _customerRegistrationService.ChangePassword(changePassRequest);
+                        if (!changePassResult.Success)
                         {
-                            NotifyError(changePassError);
+                            foreach (var changePassError in changePassResult.Errors)
+                            {
+                                NotifyError(changePassError);
+                            }
                         }
                     }
-                }
 
-                // Customer roles.
-                if (allowManagingCustomerRoles)
-                {
+                    // Customer roles.
                     newCustomerRoles.Each(x => _customerService.InsertCustomerRoleMapping(new CustomerRoleMapping { CustomerId = customer.Id, CustomerRoleId = x.Id }));
+
+                    Services.EventPublisher.Publish(new ModelBoundEvent(model, customer, form));
+                    Services.CustomerActivity.InsertActivity("AddNewCustomer", T("ActivityLog.AddNewCustomer"), customer.Id);
+
+                    NotifySuccess(T("Admin.Customers.Customers.Added"));
+                    return continueEditing ? RedirectToAction("Edit", new { id = customer.Id }) : RedirectToAction("List");
                 }
-
-                Services.EventPublisher.Publish(new ModelBoundEvent(model, customer, form));
-                Services.CustomerActivity.InsertActivity("AddNewCustomer", T("ActivityLog.AddNewCustomer"), customer.Id);
-
-                NotifySuccess(T("Admin.Customers.Customers.Added"));
-                return continueEditing ? RedirectToAction("Edit", new { id = customer.Id }) : RedirectToAction("List");
             }
 
             // If we got this far, something failed, redisplay form.
@@ -697,25 +651,20 @@ namespace SmartStore.Admin.Controllers
         {
             var customer = _customerService.GetCustomerById(model.Id);
             if (customer == null || customer.Deleted)
+            {
                 return RedirectToAction("List");
+            }
 
             // Validate customer roles.
-            var allCustomerRoles = _customerService.GetAllCustomerRoles(true);
             var allowManagingCustomerRoles = Services.Permissions.Authorize(Permissions.Customer.EditRole);
+
+            var allCustomerRoleIds = allowManagingCustomerRoles
+                ? _customerService.GetAllCustomerRoles(true).SourceQuery.Select(x => x.Id).ToList()
+                : new List<int>();
 
             if (allowManagingCustomerRoles)
             {
-                var newCustomerRoles = new List<CustomerRole>();
-
-                foreach (var customerRole in allCustomerRoles)
-                {
-                    if (model.SelectedCustomerRoleIds != null && model.SelectedCustomerRoleIds.Contains(customerRole.Id))
-                    {
-                        newCustomerRoles.Add(customerRole);
-                    }
-                }
-
-                var customerRolesError = ValidateCustomerRoles(newCustomerRoles);
+                var customerRolesError = ValidateCustomerRoles(model.SelectedCustomerRoleIds, allCustomerRoleIds, out _);
                 if (customerRolesError.HasValue())
                 {
                     ModelState.AddModelError("", customerRolesError);
@@ -829,18 +778,18 @@ namespace SmartStore.Admin.Controllers
                                 .Where(x => !x.IsSystemMapping)
                                 .ToMultimap(x => x.CustomerRoleId, x => x);
 
-                            foreach (var role in allCustomerRoles)
+                            foreach (var roleId in allCustomerRoleIds)
                             {
-                                if (model.SelectedCustomerRoleIds?.Contains(role.Id) ?? false)
+                                if (model.SelectedCustomerRoleIds?.Contains(roleId) ?? false)
                                 {
-                                    if (!existingMappings.ContainsKey(role.Id))
+                                    if (!existingMappings.ContainsKey(roleId))
                                     {
-                                        _customerService.InsertCustomerRoleMapping(new CustomerRoleMapping { CustomerId = customer.Id, CustomerRoleId = role.Id });
+                                        _customerService.InsertCustomerRoleMapping(new CustomerRoleMapping { CustomerId = customer.Id, CustomerRoleId = roleId });
                                     }
                                 }
-                                else if (existingMappings.ContainsKey(role.Id))
+                                else if (existingMappings.ContainsKey(roleId))
                                 {
-                                    existingMappings[role.Id].Each(x => _customerService.DeleteCustomerRoleMapping(x));
+                                    existingMappings[roleId].Each(x => _customerService.DeleteCustomerRoleMapping(x));
                                 }
                             }
 
@@ -1037,7 +986,7 @@ namespace SmartStore.Admin.Controllers
                     throw new SmartException(T("PrivateMessages.Disabled"));
                 if (customer.IsGuest())
                     throw new SmartException(T("Common.MethodNotSupportedForGuests"));
-                
+
                 var privateMessage = new PrivateMessage
                 {
                     StoreId = Services.StoreContext.CurrentStore.Id,
@@ -1231,7 +1180,7 @@ namespace SmartStore.Admin.Controllers
 
                 NotifySuccess(T("Admin.Customers.Customers.Addresses.Updated"));
 
-                return continueEditing 
+                return continueEditing
                     ? RedirectToAction("AddressEdit", new { addressId = model.Address.Id, customerId = model.CustomerId })
                     : RedirectToAction("Edit", new { id = customer.Id });
             }
@@ -1310,28 +1259,31 @@ namespace SmartStore.Admin.Controllers
         [Permission(Permissions.Order.Read)]
         public ActionResult OrderList(int customerId, GridCommand command)
         {
-            var model = new GridModel<CustomerModel.OrderModel>();
+            var allStores = Services.StoreService.GetAllStores().ToDictionary(x => x.Id);
+            var orders = _orderService.SearchOrders(0, customerId, null, null, null, null, null, null, null, null, command.Page - 1, command.PageSize);
 
-            var orders = _orderService.SearchOrders(0, customerId, null, null, null, null, null, null, null, null, 0, int.MaxValue);
+            var model = new GridModel<CustomerModel.OrderModel>
+            {
+                Total = orders.TotalCount
+            };
 
-            model.Data = orders.PagedForCommand(command)
-                .Select(order =>
+            model.Data = orders.Select(order =>
+            {
+                allStores.TryGetValue(order.StoreId, out var store);
+
+                var orderModel = new CustomerModel.OrderModel
                 {
-                    var store = Services.StoreService.GetStoreById(order.StoreId);
-                    var orderModel = new CustomerModel.OrderModel()
-                    {
-                        Id = order.Id,
-                        OrderStatus = order.OrderStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
-                        PaymentStatus = order.PaymentStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
-                        ShippingStatus = order.ShippingStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
-                        OrderTotal = _priceFormatter.FormatPrice(order.OrderTotal, true, false),
-                        StoreName = store != null ? store.Name : "".NaIfEmpty(),
-                        CreatedOn = Services.DateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc),
-                    };
-                    return orderModel;
-                });
+                    Id = order.Id,
+                    OrderStatus = order.OrderStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
+                    PaymentStatus = order.PaymentStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
+                    ShippingStatus = order.ShippingStatus.GetLocalizedEnum(Services.Localization, Services.WorkContext),
+                    OrderTotal = _priceFormatter.FormatPrice(order.OrderTotal, true, false),
+                    StoreName = store?.Name.NullEmpty() ?? "".NaIfEmpty(),
+                    CreatedOn = Services.DateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc),
+                };
 
-            model.Total = orders.Count;
+                return orderModel;
+            });
 
             return new JsonResult
             {
@@ -1343,75 +1295,268 @@ namespace SmartStore.Admin.Controllers
 
         #region Reports
 
+        private List<TopCustomerReportLineModel> CreateCustomerReportLineModel(IList<TopCustomerReportLine> items)
+        {
+            var customerIds = items.Distinct().Select(x => x.CustomerId).ToArray();
+            var customers = _customerService.GetCustomersByIds(customerIds).ToDictionarySafe(x => x.Id);
+            var guestStr = T("Admin.Customers.Guest").Text;
+
+            var model = items.Select(x =>
+            {
+                customers.TryGetValue(x.CustomerId, out var customer);
+
+                var m = new TopCustomerReportLineModel
+                {
+                    OrderTotal = _priceFormatter.FormatPrice(x.OrderTotal, true, false),
+                    OrderCount = x.OrderCount.ToString("N0"),
+                    CustomerId = x.CustomerId,
+                    CustomerNumber = customer?.CustomerNumber,
+                    CustomerDisplayName = customer?.FindEmail() ?? customer?.FormatUserName(_customerSettings, T, false) ?? "".NaIfEmpty(),
+                    Email = customer?.Email.NullEmpty() ?? (customer.IsGuest() ? guestStr : "".NaIfEmpty()),
+                    Username = customer?.Username,
+                    FullName = customer?.GetFullName(),
+                    Active = customer?.Active ?? false,
+                    LastActivityDate = Services.DateTimeHelper.ConvertToUserTime(customer?.LastActivityDateUtc ?? DateTime.MinValue, DateTimeKind.Utc)
+                };
+
+                return m;
+            })
+            .ToList();
+
+            return model;
+        }
+
+        [Permission(Permissions.Customer.Read, false)]
+        public ActionResult TopCustomersDashboardReport()
+        {
+            var pageSize = 7;
+            var reportByQuantity = _customerReportService.GetTopCustomersReport(null, null, null, null, null, ReportSorting.ByQuantityDesc, 0, pageSize);
+            var reportByAmount = _customerReportService.GetTopCustomersReport(null, null, null, null, null, ReportSorting.ByAmountDesc, 0, pageSize);
+
+            var model = new TopCustomersDashboardReportModel
+            {
+                TopCustomersByQuantity = CreateCustomerReportLineModel(reportByQuantity),
+                TopCustomersByAmount = CreateCustomerReportLineModel(reportByAmount)
+            };
+
+            return PartialView(model);
+        }
+
+        [ChildActionOnly]
+        [Permission(Permissions.Customer.Read, false)]
+        public ActionResult ReportRegisteredCustomers()
+        {
+            var model = new List<RegisteredCustomerReportLineModel>();
+
+            model.Add(new RegisteredCustomerReportLineModel
+            {
+                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.7days"),
+                Customers = _customerReportService.GetRegisteredCustomersReport(7)
+            });
+            model.Add(new RegisteredCustomerReportLineModel
+            {
+                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.14days"),
+                Customers = _customerReportService.GetRegisteredCustomersReport(14)
+            });
+            model.Add(new RegisteredCustomerReportLineModel
+            {
+                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.month"),
+                Customers = _customerReportService.GetRegisteredCustomersReport(30)
+            });
+            model.Add(new RegisteredCustomerReportLineModel
+            {
+                Period = T("Admin.Customers.Reports.RegisteredCustomers.Fields.Period.year"),
+                Customers = _customerReportService.GetRegisteredCustomersReport(365)
+            });
+
+            return PartialView(model);
+        }
+
+        /// <summary>
+        /// Sorts customer registration dataPoint into customer chart report accordingly to period 
+        /// </summary>
+        /// <param name="reports">Registrations chart report</param>
+        /// <param name="dataPoint">Current registration data</param>
+        [NonAction]
+        public void SetCustomerReportData(List<DashboardChartReportModel> reports, DateTime dataPoint)
+        {
+            var userTime = _dateTimeHelper.ConvertToUserTime(DateTime.UtcNow, DateTimeKind.Utc);
+
+            // Today
+            if (dataPoint >= userTime.Date)
+            {
+                reports[0].DataSets[0].Quantity[dataPoint.Hour]++;
+            }
+            // Yesterday
+            else if (dataPoint >= userTime.AddDays(-1).Date)
+            {
+                var yesterday = reports[1].DataSets[0];
+                yesterday.Quantity[dataPoint.Hour]++;
+            }
+
+            // Within last 7 days
+            if (dataPoint >= userTime.AddDays(-6).Date)
+            {
+                var week = reports[2].DataSets[0];
+                var weekIndex = (userTime.Date - dataPoint.Date).Days;
+                week.Quantity[week.Quantity.Length - weekIndex - 1]++;
+            }
+
+            // Within last 28 days  
+            if (dataPoint >= userTime.AddDays(-27).Date)
+            {
+                var month = reports[3].DataSets[0];
+                var monthIndex = (userTime.Date - dataPoint.Date).Days / 7;
+                month.Quantity[month.Quantity.Length - monthIndex - 1]++;
+            }
+
+            // Within this year
+            if (dataPoint.Year == userTime.Year)
+            {
+                reports[4].DataSets[0].Quantity[dataPoint.Month - 1]++;
+            }
+        }
+
+        /// <summary>
+        /// Evaluates and displays customer registrations of this year as line chart
+        /// </summary>
+        /// <returns>Customers registrations chart</returns>
+        public ActionResult RegisteredCustomersDashboardReport()
+        {
+            // Get customers of at least last 28 days (if year is younger)
+            var utcNow = DateTime.UtcNow;
+            var beginningOfYear = new DateTime(utcNow.Year, 1, 1);
+            var startDate = (utcNow.Date - beginningOfYear).Days < 28 ? utcNow.AddDays(-27).Date : beginningOfYear;
+            var searchQuery = new CustomerSearchQuery
+            {
+                RegistrationFromUtc = startDate,
+                CustomerRoleIds = new int[] { 3 },
+                PageSize = int.MaxValue
+            };
+
+            var customerDates = _customerService.SearchCustomers(searchQuery).SourceQuery.Select(x => x.CreatedOnUtc).ToList();
+            var model = new List<DashboardChartReportModel>()
+            {
+                // Today = index 0
+                new DashboardChartReportModel(1, 24),
+                // Yesterday = index 1
+                new DashboardChartReportModel(1, 24),
+                // Last 7 days = index 2
+                new DashboardChartReportModel(1, 7),
+                // Last 28 days = index 3
+                new DashboardChartReportModel(1, 4),
+                // This year = index 4
+                new DashboardChartReportModel(1, 12)
+            };
+
+            // Sort data for chart display
+            foreach (var dataPoint in customerDates)
+            {
+                SetCustomerReportData(model, _dateTimeHelper.ConvertToUserTime(dataPoint, DateTimeKind.Utc));
+            }
+
+            var userTime = _dateTimeHelper.ConvertToUserTime(utcNow, DateTimeKind.Utc).Date;
+            // Format and sum values, create labels for all dataPoints
+            for (int i = 0; i < model.Count; i++)
+            {
+                foreach (var data in model[i].DataSets)
+                {
+                    for (int j = 0; j < data.Amount.Length; j++)
+                    {
+                        data.QuantityFormatted[j] = data.Quantity[j].ToString("N0");
+                    }
+                    data.TotalAmount = data.Quantity.Sum();
+                    data.TotalAmountFormatted = data.TotalAmount.ToString("N0");
+                }
+                model[i].TotalAmount = model[i].DataSets.Sum(x => x.TotalAmount);
+                model[i].TotalAmountFormatted = model[i].TotalAmount.ToString("N0");
+
+                for (int j = 0; j < model[i].Labels.Length; j++)
+                {
+                    // Today & yesterday
+                    if (i <= 1)
+                    {
+                        model[i].Labels[j] = userTime.AddHours(j).ToString("t") + " - " 
+                            + userTime.AddHours(j).AddMinutes(59).ToString("t");
+                    }
+                    // Last 7 days
+                    else if (i == 2)
+                    {
+                        model[i].Labels[j] = userTime.AddDays(-6 + j).ToString("m");
+                    }
+                    // Last 28 days
+                    else if (i == 3)
+                    {
+                        var fromDay = -(7 * model[i].Labels.Length);
+                        var toDayOffset = j == model[i].Labels.Length - 1 ? 0 : 1;
+                        model[i].Labels[j] = userTime.AddDays(fromDay + 7 * j).ToString("m") + " - "
+                            + userTime.AddDays(fromDay + 7 * (j + 1) - toDayOffset).ToString("m");
+                    }
+                    // This year
+                    else if (i == 4)
+                    {
+                        model[i].Labels[j] = new DateTime(userTime.Year, j + 1, 1).ToString("Y");
+                    }
+                }
+            }
+
+            // Get registrations for corresponding period to calculate change in percentage; TODO: only apply to similar time of day?
+            var sumBefore = new decimal[]
+            {
+                // Get registration count for day before
+                model[1].TotalAmount,
+
+                // Get registration count for day before yesterday
+                customerDates.Where( x =>
+                    x >= utcNow.Date.AddDays(-2) && x < utcNow.Date.AddDays(-1)
+                ).Count(),
+
+                // Get registration count for week before
+                customerDates.Where( x =>
+                    x >= utcNow.Date.AddDays(-14) && x < utcNow.Date.AddDays(-7)
+                ).Count(),
+
+                // Get registration count for month before
+                _customerReportService.GetCustomerRegistrations(beginningOfYear.AddDays(-56), utcNow.Date.AddDays(-28)),
+
+                // Get registration count for year before
+                _customerReportService.GetCustomerRegistrations(beginningOfYear.AddYears(-1), utcNow.AddYears(-1))
+            };
+
+            // Format percentage value
+            for (int i = 0; i < model.Count; i++)
+            {
+                model[i].PercentageDelta =  model[i].TotalAmount != 0 && sumBefore[i] != 0
+                    ? (int)Math.Round(model[i].TotalAmount / sumBefore[i] * 100 - 100)
+                    : 0;
+            }
+
+            return PartialView(model);
+        }
+
         [Permission(Permissions.Customer.Read)]
         public ActionResult Reports()
         {
-            var model = new CustomerReportsModel();
-
-            //customers by number of orders
-            model.BestCustomersByNumberOfOrders = new BestCustomersReportModel();
-            model.BestCustomersByNumberOfOrders.AvailableOrderStatuses = OrderStatus.Pending.ToSelectList(false).ToList();
-            model.BestCustomersByNumberOfOrders.AvailablePaymentStatuses = PaymentStatus.Pending.ToSelectList(false).ToList();
-            model.BestCustomersByNumberOfOrders.AvailableShippingStatuses = ShippingStatus.NotYetShipped.ToSelectList(false).ToList();
-
-            //customers by order total
-            model.BestCustomersByOrderTotal = new BestCustomersReportModel();
-            model.BestCustomersByOrderTotal.AvailableOrderStatuses = OrderStatus.Pending.ToSelectList(false).ToList();
-            model.BestCustomersByOrderTotal.AvailablePaymentStatuses = PaymentStatus.Pending.ToSelectList(false).ToList();
-            model.BestCustomersByOrderTotal.AvailableShippingStatuses = ShippingStatus.NotYetShipped.ToSelectList(false).ToList();
+            var model = new CustomerReportsModel
+            {
+                GridPageSize = _adminAreaSettings.GridPageSize,
+                UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email,
+                TopCustomers = new TopCustomersReportModel
+                {
+                    AvailableOrderStatuses = OrderStatus.Pending.ToSelectList(false).ToList(),
+                    AvailablePaymentStatuses = PaymentStatus.Pending.ToSelectList(false).ToList(),
+                    AvailableShippingStatuses = ShippingStatus.NotYetShipped.ToSelectList(false).ToList()
+                }
+            };
 
             return View(model);
         }
 
         [GridAction(EnableCustomBinding = true)]
         [Permission(Permissions.Customer.Read)]
-        public ActionResult ReportBestCustomersByOrderTotalList(GridCommand command, BestCustomersReportModel model)
+        public ActionResult ReportTopCustomersList(GridCommand command, TopCustomersReportModel model)
         {
-            DateTime? startDateValue = (model.StartDate == null) ? null
-                            : (DateTime?)Services.DateTimeHelper.ConvertToUtcTime(model.StartDate.Value, Services.DateTimeHelper.CurrentTimeZone);
-
-            DateTime? endDateValue = (model.EndDate == null) ? null
-                            : (DateTime?)Services.DateTimeHelper.ConvertToUtcTime(model.EndDate.Value, Services.DateTimeHelper.CurrentTimeZone).AddDays(1);
-
-            OrderStatus? orderStatus = model.OrderStatusId > 0 ? (OrderStatus?)(model.OrderStatusId) : null;
-            PaymentStatus? paymentStatus = model.PaymentStatusId > 0 ? (PaymentStatus?)(model.PaymentStatusId) : null;
-            ShippingStatus? shippingStatus = model.ShippingStatusId > 0 ? (ShippingStatus?)(model.ShippingStatusId) : null;
-
-            var items = _customerReportService.GetBestCustomersReport(startDateValue, endDateValue, orderStatus, paymentStatus, shippingStatus, 1);
-
-            var gridModel = new GridModel<BestCustomerReportLineModel>
-            {
-                Data = items.Select(x =>
-                {
-                    var m = new BestCustomerReportLineModel()
-                    {
-                        CustomerId = x.CustomerId,
-                        OrderTotal = _priceFormatter.FormatPrice(x.OrderTotal, true, false),
-                        OrderCount = x.OrderCount,
-                    };
-
-                    var customer = _customerService.GetCustomerById(x.CustomerId);
-                    if (customer != null)
-                    {
-                        m.CustomerName = customer.IsGuest() ? T("Admin.Customers.Guest").Text : customer.Email;
-                    }
-
-                    return m;
-                }),
-                Total = items.Count
-            };
-
-            return new JsonResult
-            {
-                Data = gridModel
-            };
-        }
-
-        [GridAction(EnableCustomBinding = true)]
-        [Permission(Permissions.Customer.Read)]
-        public ActionResult ReportBestCustomersByNumberOfOrdersList(GridCommand command, BestCustomersReportModel model)
-        {
-            DateTime? startDateValue = (model.StartDate == null) 
+            DateTime? startDateValue = (model.StartDate == null)
                 ? null
                 : (DateTime?)Services.DateTimeHelper.ConvertToUtcTime(model.StartDate.Value, Services.DateTimeHelper.CurrentTimeZone);
 
@@ -1419,32 +1564,44 @@ namespace SmartStore.Admin.Controllers
                 ? null
                 : (DateTime?)Services.DateTimeHelper.ConvertToUtcTime(model.EndDate.Value, Services.DateTimeHelper.CurrentTimeZone).AddDays(1);
 
-            OrderStatus? orderStatus = model.OrderStatusId > 0 ? (OrderStatus?)(model.OrderStatusId) : null;
-            PaymentStatus? paymentStatus = model.PaymentStatusId > 0 ? (PaymentStatus?)(model.PaymentStatusId) : null;
-            ShippingStatus? shippingStatus = model.ShippingStatusId > 0 ? (ShippingStatus?)(model.ShippingStatusId) : null;
+            OrderStatus? orderStatus = model.OrderStatusId > 0 ? (OrderStatus?)model.OrderStatusId : null;
+            PaymentStatus? paymentStatus = model.PaymentStatusId > 0 ? (PaymentStatus?)model.PaymentStatusId : null;
+            ShippingStatus? shippingStatus = model.ShippingStatusId > 0 ? (ShippingStatus?)model.ShippingStatusId : null;
 
-            var items = _customerReportService.GetBestCustomersReport(startDateValue, endDateValue, orderStatus, paymentStatus, shippingStatus, 2);
+            // Sorting.
+            var sorting = ReportSorting.ByAmountDesc;
 
-            var gridModel = new GridModel<BestCustomerReportLineModel>
+            if (command.SortDescriptors?.Any() ?? false)
             {
-                Data = items.Select(x =>
+                var sort = command.SortDescriptors.First();
+                if (sort.Member == nameof(TopCustomerReportLineModel.OrderCount))
                 {
-                    var m = new BestCustomerReportLineModel
-                    {
-                        CustomerId = x.CustomerId,
-                        OrderTotal = _priceFormatter.FormatPrice(x.OrderTotal, true, false),
-                        OrderCount = x.OrderCount,
-                    };
+                    sorting = sort.SortDirection == ListSortDirection.Ascending
+                        ? ReportSorting.ByQuantityAsc
+                        : ReportSorting.ByQuantityDesc;
+                }
+                else if (sort.Member == nameof(TopCustomerReportLineModel.OrderTotal))
+                {
+                    sorting = sort.SortDirection == ListSortDirection.Ascending
+                        ? ReportSorting.ByAmountAsc
+                        : ReportSorting.ByAmountDesc;
+                }
+            }
 
-                    var customer = _customerService.GetCustomerById(x.CustomerId);
-                    if (customer != null)
-                    {
-                        m.CustomerName = customer.IsGuest() ? T("Admin.Customers.Guest").Text : customer.Email;
-                    }
+            var items = _customerReportService.GetTopCustomersReport(
+                startDateValue,
+                endDateValue,
+                orderStatus,
+                paymentStatus,
+                shippingStatus,
+                sorting,
+                command.Page - 1,
+                command.PageSize);
 
-                    return m;
-                }),
-                Total = items.Count
+            var gridModel = new GridModel<TopCustomerReportLineModel>
+            {
+                Total = items.TotalCount,
+                Data = CreateCustomerReportLineModel(items)
             };
 
             return new JsonResult
@@ -1453,30 +1610,23 @@ namespace SmartStore.Admin.Controllers
             };
         }
 
-        [ChildActionOnly]
-        [Permission(Permissions.Customer.Read, false)]
-        public ActionResult ReportRegisteredCustomers()
+        [NonAction]
+        protected void CalculateOrdersAmount(DashboardChartReportModel report, IList<RegistredCustomersDate> allCustomers, List<RegistredCustomersDate> customers, DateTime fromDate, DateTime toDate)
         {
-            var model = GetReportRegisteredCustomersModel();
-            return PartialView(model);
-        }
-
-        [GridAction(EnableCustomBinding = true)]
-        [Permission(Permissions.Customer.Read)]
-        public ActionResult ReportRegisteredCustomersList(GridCommand command)
-        {
-            var model = GetReportRegisteredCustomersModel();
-
-            var gridModel = new GridModel<RegisteredCustomerReportLineModel>
+            foreach (var item in report.DataSets)
             {
-                Data = model,
-                Total = model.Count
-            };
+                item.TotalAmountFormatted = ((int)Math.Round(item.Amount.Sum())).ToString("N");
+            }
 
-            return new JsonResult
-            {
-                Data = gridModel
-            };
+            var totalAmount = customers.Sum(x => x.Count);
+            report.TotalAmountFormatted = ((int)Math.Round((double)totalAmount)).ToString("N");
+            var sumBefore = (int)Math.Round((double)allCustomers
+                .Where(x => x.Date < toDate && x.Date >= fromDate)
+                .Select(x => x)
+                .Count()
+                );
+
+            report.PercentageDelta = sumBefore <= 0 ? 0 : (int)Math.Round(totalAmount / (double)sumBefore * 100 - 100);
         }
 
         #endregion

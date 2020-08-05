@@ -138,6 +138,11 @@ namespace SmartStore.Core.IO
 							 : path.TrimStart('/', '\\');
 		}
 
+		public string GetPublicUrl(IFile file, bool forCloud = false)
+		{
+			return MapPublic(file.Path);
+		}
+
 		public string GetPublicUrl(string path, bool forCloud = false)
 		{
 			return MapPublic(path);
@@ -186,15 +191,15 @@ namespace SmartStore.Core.IO
 			var fileInfo = new FileInfo(MapStorage(path));
 			if (!fileInfo.Exists)
 			{
-				throw new ArgumentException("File " + path + " does not exist");
+				throw new FileNotFoundException("File " + path + " does not exist");
 			}
 
 			if (!fileInfo.Directory.Exists)
 			{
-				throw new ArgumentException("Folder " + path + " does not exist");
+				throw new DirectoryNotFoundException("Folder " + path + " does not exist");
 			}
 
-			// get relative path of the folder
+			// Get relative path of the folder
 			var folderPath = Path.GetDirectoryName(path);
 
 			return new LocalFolder(folderPath, fileInfo.Directory);
@@ -230,7 +235,7 @@ namespace SmartStore.Core.IO
 
 			if (!directoryInfo.Exists)
 			{
-				throw new ArgumentException("Directory " + path + " does not exist");
+				throw new DirectoryNotFoundException("Directory " + path + " does not exist");
 			}
 
 			return directoryInfo
@@ -270,16 +275,9 @@ namespace SmartStore.Core.IO
 			return (di.Attributes & FileAttributes.Hidden) != 0;
 		}
 
-		public void CreateFolder(string path)
+		public IFolder CreateFolder(string path)
 		{
-			var directoryInfo = new DirectoryInfo(MapStorage(path));
-
-			if (directoryInfo.Exists)
-			{
-				throw new ArgumentException("Directory " + path + " already exists");
-			}
-
-			Directory.CreateDirectory(directoryInfo.FullName);
+			return new LocalFolder(path, Directory.CreateDirectory(MapStorage(path)));
 		}
 
 		public void DeleteFolder(string path)
@@ -288,7 +286,7 @@ namespace SmartStore.Core.IO
 
 			if (!directoryInfo.Exists)
 			{
-				throw new ArgumentException("Directory " + path + " does not exist");
+				throw new DirectoryNotFoundException("Directory " + path + " does not exist.");
 			}
 
 			directoryInfo.Delete(true);
@@ -299,16 +297,70 @@ namespace SmartStore.Core.IO
 			var sourceDirectory = new DirectoryInfo(MapStorage(path));
 			if (!sourceDirectory.Exists)
 			{
-				throw new ArgumentException("Directory " + path + "does not exist");
+				throw new DirectoryNotFoundException("Directory " + path + "does not exist.");
 			}
 
 			var targetDirectory = new DirectoryInfo(MapStorage(newPath));
 			if (targetDirectory.Exists)
 			{
-				throw new ArgumentException("Directory " + newPath + " already exists");
+				throw new ArgumentException("Directory " + newPath + " already exists.");
 			}
 
 			Directory.Move(sourceDirectory.FullName, targetDirectory.FullName);
+		}
+
+		public void CopyFolder(string path, string destinationPath, bool overwrite = true)
+		{
+			var sourceDirectory = new DirectoryInfo(MapStorage(path));
+			if (!sourceDirectory.Exists)
+			{
+				throw new DirectoryNotFoundException("Directory " + path + "does not exist.");
+			}
+
+			var targetPath = Combine(MapStorage(destinationPath), sourceDirectory.Name);
+			var destDirectory = new DirectoryInfo(targetPath);
+			if (!overwrite && destDirectory.Exists)
+			{
+				throw new ArgumentException("Directory " + destinationPath + " already exists.");
+			}
+
+			if (!destDirectory.Exists)
+			{
+				destDirectory.Create();
+			}
+
+			FileSystemHelper.CopyDirectory(sourceDirectory, destDirectory, overwrite);
+		}
+
+		public bool CheckUniqueFileName(string path, out string newPath)
+		{
+			Guard.NotEmpty(path, nameof(path));
+
+			newPath = null;
+
+			var file = GetFile(path);
+			if (!file.Exists)
+			{
+				return false;
+			}
+
+			var pattern = string.Concat(file.Title, "-*", file.Extension);
+			var dir = file.Directory;
+			var files = new HashSet<string>(SearchFiles(dir, pattern, false).Select(x => Path.GetFileName(x)), StringComparer.OrdinalIgnoreCase);
+
+			int i = 1;
+			while (true)
+			{
+				var fileName = string.Concat(file.Title, "-", i, file.Extension);
+				if (!files.Contains(fileName))
+				{
+					// Found our gap
+					newPath = Combine(dir, fileName);
+					return true;
+				}
+
+				i++;
+			}
 		}
 
 		public IFile CreateFile(string path)
@@ -320,7 +372,7 @@ namespace SmartStore.Core.IO
 				throw new ArgumentException("File " + path + " already exists");
 			}
 
-			// ensure the directory exists
+			// Ensure the directory exists
 			var dirName = Path.GetDirectoryName(fileInfo.FullName);
 			if (!Directory.Exists(dirName))
 			{
@@ -364,7 +416,7 @@ namespace SmartStore.Core.IO
 
 			if (fileInfo.Exists)
 			{
-				fileInfo.Delete();
+				WaitForUnlockAndExecute(fileInfo, x => x.Delete());
 			}
 		}
 
@@ -373,16 +425,16 @@ namespace SmartStore.Core.IO
 			var sourceFileInfo = new FileInfo(MapStorage(path));
 			if (!sourceFileInfo.Exists)
 			{
-				throw new ArgumentException("File " + path + " does not exist");
+				throw new FileNotFoundException("File " + path + " does not exist.");
 			}
 
 			var targetFileInfo = new FileInfo(MapStorage(newPath));
 			if (targetFileInfo.Exists)
 			{
-				throw new ArgumentException("File " + newPath + " already exists");
+				throw new ArgumentException("File " + newPath + " already exists.");
 			}
 
-			File.Move(sourceFileInfo.FullName, targetFileInfo.FullName);
+			WaitForUnlockAndExecute(sourceFileInfo, x => File.Move(x.FullName, targetFileInfo.FullName));
 		}
 
 		public void CopyFile(string path, string newPath, bool overwrite = false)
@@ -390,7 +442,7 @@ namespace SmartStore.Core.IO
 			var sourceFileInfo = new FileInfo(MapStorage(path));
 			if (!sourceFileInfo.Exists)
 			{
-				throw new ArgumentException("File " + path + " does not exist");
+				throw new FileNotFoundException("File " + path + " does not exist");
 			}
 
 			var targetPath = MapStorage(newPath);
@@ -403,50 +455,47 @@ namespace SmartStore.Core.IO
 				}
 			}
 
-			File.Copy(sourceFileInfo.FullName, targetPath, overwrite);
+			WaitForUnlockAndExecute(sourceFileInfo, x => File.Copy(x.FullName, targetPath, overwrite));
 		}
 
 		public void SaveStream(string path, Stream inputStream)
 		{
-			// Create the file.
-			// The CreateFile method will map the still relative path
-			var file = CreateFile(path);
-
-			using (var outputStream = file.OpenWrite())
+			using (var outputStream = File.OpenWrite(MapStorage(path)))
 			{
-				var buffer = new byte[8192];
-				for (;;)
-				{
-					var length = inputStream.Read(buffer, 0, buffer.Length);
-					if (length <= 0)
-						break;
-					outputStream.Write(buffer, 0, length);
-				}
+				outputStream.SetLength(0);
+				inputStream.CopyTo(outputStream);
 			}
 		}
 
 		public async Task SaveStreamAsync(string path, Stream inputStream)
 		{
-			// Create the file.
-			// The CreateFile method will map the still relative path
-			var file = await CreateFileAsync(path);
-
-			using (var outputStream = file.OpenWrite())
+			using (var outputStream = File.OpenWrite(MapStorage(path)))
 			{
-				var buffer = new byte[8192];
-				for (;;)
-				{
-					var length = await inputStream.ReadAsync(buffer, 0, buffer.Length);
-					if (length <= 0)
-						break;
-					await outputStream.WriteAsync(buffer, 0, length);
-				}
+				outputStream.SetLength(0);
+				await inputStream.CopyToAsync(outputStream);
 			}
 		}
 
 		public string Combine(string path1, string path2)
 		{
 			return Path.Combine(path1, path2);
+		}
+
+		private static void WaitForUnlockAndExecute(FileInfo fi, Action<FileInfo> action)
+		{
+			try
+			{
+				action(fi);
+			}
+			catch (IOException)
+			{
+				if (!fi.WaitForUnlock(250))
+				{
+					throw;
+				}
+
+				action(fi);
+			}
 		}
 
 		/// <summary>
@@ -482,7 +531,7 @@ namespace SmartStore.Core.IO
 			return mappedPath;
 		}
 
-        private class LocalFile : IFile
+        public class LocalFile : IFile
         {
             private readonly string _localPath;
             private readonly string _relativePath;
@@ -552,7 +601,7 @@ namespace SmartStore.Core.IO
                         try
                         {
                             var mime = MimeTypes.MapNameToMimeType(Name);
-                            _dimensions = ImageHeader.GetDimensions(OpenRead(), mime, false);
+							_dimensions = ImageHeader.GetDimensions(OpenRead(), mime, false);
                         }
                         catch
                         {
@@ -596,7 +645,7 @@ namespace SmartStore.Core.IO
             }
         }
 
-		private class LocalFolder : IFolder
+		public class LocalFolder : IFolder
 		{
             private readonly string _localPath;
             private readonly string _relativePath;

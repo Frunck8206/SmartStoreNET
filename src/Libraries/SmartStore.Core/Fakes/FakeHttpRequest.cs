@@ -102,6 +102,11 @@ namespace SmartStore.Core.Fakes
             get { return ""; }
         }
 
+        public override string Path
+        {
+            get { return _url?.AbsolutePath ?? ApplicationPath ?? "/"; }
+        }
+
         public override string ApplicationPath
         {
             get
@@ -131,7 +136,7 @@ namespace SmartStore.Core.Fakes
 		public override bool IsSecureConnection => _url?.Scheme?.EmptyNull().StartsWith("https", StringComparison.OrdinalIgnoreCase) == true;
 		public override bool IsAuthenticated => false;
 		public override string[] UserLanguages => new string[] { };
-		public override string UserAgent => "SmartStore.NET";
+		public override string UserAgent => "Smartstore";
 		public override bool IsLocal => false;
 
 		public override RequestContext RequestContext

@@ -69,6 +69,12 @@ namespace SmartStore.Core.Domain.Directory
 		public int DisplayOrder { get; set; }
 
 		/// <summary>
+		/// Gets or sets a value indicating whether the cookie manager should be displayed for visitors of this country.
+		/// </summary>
+		[DataMember]
+		public bool DisplayCookieManager { get; set; }
+
+		/// <summary>
 		/// Gets or sets a value indicating whether the entity is limited/restricted to certain stores
 		/// </summary>
 		[DataMember]
@@ -79,6 +85,17 @@ namespace SmartStore.Core.Domain.Directory
 		/// </summary>
 		[DataMember, MaxLength]
 		public string AddressFormat { get; set; }
+
+		/// <summary>
+		/// Gets or sets the identfier of the default currency.
+		/// </summary>
+		[DataMember]
+		public int? DefaultCurrencyId { get; set; }
+
+		/// <summary>
+		/// Gets or sets the default currency.
+		/// </summary>
+		public virtual Currency DefaultCurrency { get; set; }
 
 		/// <summary>
 		/// Gets or sets the state/provinces

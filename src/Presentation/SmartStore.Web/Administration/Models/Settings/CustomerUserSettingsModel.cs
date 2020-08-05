@@ -1,5 +1,8 @@
 ﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Web.Mvc;
+using FluentValidation;
+using FluentValidation.Attributes;
 using SmartStore.Core.Domain.Customers;
 using SmartStore.Web.Framework;
 using SmartStore.Web.Framework.Localization;
@@ -7,6 +10,7 @@ using SmartStore.Web.Framework.Modelling;
 
 namespace SmartStore.Admin.Models.Settings
 {
+    [Validator(typeof(CustomerUserSettingsValidator))]
     public partial class CustomerUserSettingsModel : ModelBase, ILocalizedModel<CustomerUserSettingsLocalizedModel>
 	{
         public CustomerUserSettingsModel()
@@ -31,8 +35,6 @@ namespace SmartStore.Admin.Models.Settings
 
         public partial class CustomerSettingsModel
         {
-			public IList<SelectListItem> AvailableRegisterCustomerRoles { get; set; }
-
             [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.CustomerLoginType")]
             public CustomerLoginType CustomerLoginType { get; set; }
 
@@ -51,10 +53,12 @@ namespace SmartStore.Admin.Models.Settings
             [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.UserRegistrationType")]
             public UserRegistrationType UserRegistrationType { get; set; }
 
-			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.RegisterCustomerRole")]
+            [UIHint("CustomerRoles")]
+            [AdditionalMetadata("includeSystemRoles", false)]
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.RegisterCustomerRole")]
 			public int RegisterCustomerRoleId { get; set; }
 
-			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AllowCustomersToUploadAvatars")]
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AllowCustomersToUploadAvatars")]
             public bool AllowCustomersToUploadAvatars { get; set; }
 
             [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.ShowCustomersLocation")]
@@ -80,9 +84,6 @@ namespace SmartStore.Admin.Models.Settings
 
 			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.CustomerNameFormatMaxLength")]
 			public int CustomerNameFormatMaxLength { get; set; }
-
-            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.DefaultPasswordFormat")]
-            public int DefaultPasswordFormat { get; set; }
 
             [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.NewsletterEnabled")]
             public bool NewsletterEnabled { get; set; }
@@ -148,7 +149,26 @@ namespace SmartStore.Admin.Models.Settings
             public bool FaxEnabled { get; set; }
             [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.FaxRequired")]
             public bool FaxRequired { get; set; }
-		}
+
+            #region Password
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.DefaultPasswordFormat")]
+            public int DefaultPasswordFormat { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.PasswordMinLength")]
+            public int PasswordMinLength { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.MinDigitsInPassword")]
+            public int MinDigitsInPassword { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.MinSpecialCharsInPassword")]
+            public int MinSpecialCharsInPassword { get; set; }
+
+            [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.MinUppercaseCharsInPassword")]
+            public int MinUppercaseCharsInPassword { get; set; }
+
+            #endregion
+        }
 
         public partial class AddressSettingsModel
         {            
@@ -243,10 +263,6 @@ namespace SmartStore.Admin.Models.Settings
 			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.Privacy.EnableCookieConsent")]
 			public bool EnableCookieConsent { get; set; }
 
-			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.Privacy.CookieConsentBadgetext")]
-			[AllowHtml]
-			public string CookieConsentBadgetext { get; set; }
-
 			[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.Privacy.StoreLastIpAddress")]
 			public bool StoreLastIpAddress { get; set; }
 
@@ -269,8 +285,17 @@ namespace SmartStore.Admin.Models.Settings
 
         [SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AddressFormFields.Salutations")]
         public string Salutations { get; set; }
-
-		[SmartResourceDisplayName("Admin.Configuration.Settings.CustomerUser.Privacy.CookieConsentBadgetext")]
-		public string CookieConsentBadgetext { get; set; }
 	}
+
+
+    public partial class CustomerUserSettingsValidator : AbstractValidator<CustomerUserSettingsModel>
+    {
+        public CustomerUserSettingsValidator()
+        {
+            RuleFor(x => x.CustomerSettings.PasswordMinLength).GreaterThanOrEqualTo(4);
+            RuleFor(x => x.CustomerSettings.MinDigitsInPassword).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.CustomerSettings.MinSpecialCharsInPassword).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.CustomerSettings.MinUppercaseCharsInPassword).GreaterThanOrEqualTo(0);
+        }
+    }
 }

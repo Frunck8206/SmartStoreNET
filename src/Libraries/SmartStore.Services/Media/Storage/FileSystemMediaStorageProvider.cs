@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace SmartStore.Services.Media.Storage
 		const string MediaRootPath = "Storage";
 		
 		private readonly IMediaFileSystem _fileSystem;
+		private readonly IDictionary<int, string> _pathCache = new Dictionary<int, string>();
 
 		public FileSystemMediaStorageProvider(IMediaFileSystem fileSystem)
 		{
@@ -29,15 +31,36 @@ namespace SmartStore.Services.Media.Storage
 			get { return "MediaStorage.SmartStoreFileSystem"; }
 		}
 
+		public bool IsCloudStorage 
+		{ 
+			get => _fileSystem.IsCloudStorage;
+		}
+
+		public string GetPublicUrl(MediaFile mediaFile)
+		{
+			return _fileSystem.GetPublicUrl(GetPath(mediaFile), true);
+		}
+
 		protected string GetPath(MediaFile mediaFile)
 		{
+			Guard.NotNull(mediaFile, nameof(mediaFile));
+
+			if (_pathCache.TryGetValue(mediaFile.Id, out var path))
+			{
+				return path;
+			}
+
 			var ext = mediaFile.Extension.NullEmpty() ?? MimeTypes.MapMimeTypeToExtension(mediaFile.MimeType);
 
 			var fileName = mediaFile.Id.ToString(ImageCache.IdFormatString).Grow(ext, ".");
 			var subfolder = fileName.Substring(0, ImageCache.MaxDirLength);
-			var path = _fileSystem.Combine(subfolder, fileName);
 
-			return _fileSystem.Combine(MediaRootPath, path);
+			path = _fileSystem.Combine(subfolder, fileName);
+			path = _fileSystem.Combine(MediaRootPath, path);
+
+			_pathCache[mediaFile.Id] = path;
+
+			return path;
 		}
 
 		public long GetSize(MediaFile mediaFile)
@@ -83,7 +106,7 @@ namespace SmartStore.Services.Media.Storage
 			return (await _fileSystem.ReadAllBytesAsync(filePath)) ?? new byte[0];
 		}
 
-		public void Save(MediaFile mediaFile, byte[] data)
+		public void Save(MediaFile mediaFile, Stream stream)
 		{
 			Guard.NotNull(mediaFile, nameof(mediaFile));
 
@@ -91,9 +114,19 @@ namespace SmartStore.Services.Media.Storage
 
 			var filePath = GetPath(mediaFile);
 
-			if (data != null && data.LongLength > 0)
+			if (stream != null)
 			{
-				_fileSystem.WriteAllBytes(filePath, data);
+				// Create folder if it does not exist yet
+				var dir = Path.GetDirectoryName(filePath);
+				if (!_fileSystem.FolderExists(dir))
+                {
+					_fileSystem.CreateFolder(dir);
+				}
+
+				using (stream)
+				{
+					_fileSystem.SaveStream(filePath, stream);
+				}	
 			}
 			else if (_fileSystem.FileExists(filePath))
 			{
@@ -102,7 +135,7 @@ namespace SmartStore.Services.Media.Storage
 			}
 		}
 
-		public async Task SaveAsync(MediaFile mediaFile, byte[] data)
+		public async Task SaveAsync(MediaFile mediaFile, Stream stream)
 		{
 			Guard.NotNull(mediaFile, nameof(mediaFile));
 
@@ -110,12 +143,23 @@ namespace SmartStore.Services.Media.Storage
 
 			var filePath = GetPath(mediaFile);
 
-			if (data != null && data.LongLength != 0)
+			if (stream != null)
 			{
-				await _fileSystem.WriteAllBytesAsync(filePath, data);
+				// Create folder if it does not exist yet
+				var dir = Path.GetDirectoryName(filePath);
+				if (!_fileSystem.FolderExists(dir))
+				{
+					_fileSystem.CreateFolder(dir);
+				}
+
+				using (stream)
+				{
+					await _fileSystem.SaveStreamAsync(filePath, stream);
+				}
 			}
 			else if (_fileSystem.FileExists(filePath))
 			{
+				// Remove media storage if any
 				_fileSystem.DeleteFile(filePath);
 			}
 		}
@@ -128,6 +172,17 @@ namespace SmartStore.Services.Media.Storage
 			}
 		}
 
+		public void ChangeExtension(MediaFile mediaFile, string extension)
+		{
+			Guard.NotNull(mediaFile, nameof(mediaFile));
+			Guard.NotEmpty(extension, nameof(extension));
+
+			var sourcePath = GetPath(mediaFile);
+			var newPath = Path.ChangeExtension(sourcePath, extension);
+
+			_fileSystem.RenameFile(sourcePath, newPath);
+		}
+
 		public void MoveTo(ISupportsMediaMoving target, MediaMoverContext context, MediaFile mediaFile)
 		{
 			Guard.NotNull(target, nameof(target));
@@ -138,11 +193,8 @@ namespace SmartStore.Services.Media.Storage
 
 			try
 			{
-				// Read data from file
-				var data = _fileSystem.ReadAllBytes(filePath);
-
 				// Let target store data (into database for example)
-				target.Receive(context, mediaFile, data);
+				target.Receive(context, mediaFile, OpenRead(mediaFile));
 
 				// Remember file path: we must be able to rollback IO operations on transaction failure
 				context.AffectedFiles.Add(filePath);
@@ -153,42 +205,73 @@ namespace SmartStore.Services.Media.Storage
 			}
 		}
 
-		public void Receive(MediaMoverContext context, MediaFile mediaFile, byte[] data)
+		public void Receive(MediaMoverContext context, MediaFile mediaFile, Stream stream)
 		{
 			Guard.NotNull(context, nameof(context));
 			Guard.NotNull(mediaFile, nameof(mediaFile));
 
 			// store data into file
-			if (data != null && data.LongLength != 0)
+			if (stream != null && stream.Length > 0)
 			{
 				var filePath = GetPath(mediaFile);
 
 				if (!_fileSystem.FileExists(filePath))
 				{
-					// TBD: (mc) We only save the file if it doesn't exist yet.
-					// This should save time and bandwidth in the case where the target
-					// is a cloud based file system (like Azure BLOB).
-					// In such a scenario it'd be advisable to copy the files manually
-					// with other - maybe more performant - tools before performing the provider switch.
-					_fileSystem.WriteAllBytes(filePath, data);
+                    // TBD: (mc) We only save the file if it doesn't exist yet.
+                    // This should save time and bandwidth in the case where the target
+                    // is a cloud based file system (like Azure BLOB).
+                    // In such a scenario it'd be advisable to copy the files manually
+                    // with other - maybe more performant - tools before performing the provider switch.
+
+                    // Create folder if it does not exist yet
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!_fileSystem.FolderExists(dir))
+                    {
+                        _fileSystem.CreateFolder(dir);
+                    }
+
+                    using (stream)
+					{
+						_fileSystem.SaveStream(filePath, stream);
+					}
+					
 					context.AffectedFiles.Add(filePath);
 				}
 			}
 		}
 
-		public async Task ReceiveAsync(MediaMoverContext context, MediaFile mediaFile, byte[] data)
+		public async Task ReceiveAsync(MediaMoverContext context, MediaFile mediaFile, Stream stream)
 		{
 			Guard.NotNull(context, nameof(context));
 			Guard.NotNull(mediaFile, nameof(mediaFile));
 
 			// store data into file
-			if (data != null && data.LongLength != 0)
+			if (stream != null && stream.Length > 0)
 			{
 				var filePath = GetPath(mediaFile);
 
-				await _fileSystem.WriteAllBytesAsync(filePath, data);
+				if (!_fileSystem.FileExists(filePath))
+				{
+                    // TBD: (mc) We only save the file if it doesn't exist yet.
+                    // This should save time and bandwidth in the case where the target
+                    // is a cloud based file system (like Azure BLOB).
+                    // In such a scenario it'd be advisable to copy the files manually
+                    // with other - maybe more performant - tools before performing the provider switch.
 
-				context.AffectedFiles.Add(filePath);
+                    // Create folder if it does not exist yet
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!_fileSystem.FolderExists(dir))
+                    {
+                        _fileSystem.CreateFolder(dir);
+                    }
+
+                    using (stream)
+					{
+						await _fileSystem.SaveStreamAsync(filePath, stream);
+					}
+
+					context.AffectedFiles.Add(filePath);
+				}
 			}
 		}
 

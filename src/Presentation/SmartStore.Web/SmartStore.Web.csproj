@@ -75,10 +75,6 @@
     <Reference Include="AdvancedStringBuilder, Version=0.1.0.0, Culture=neutral, PublicKeyToken=e818a2fc08933ddb, processorArchitecture=MSIL">
       <HintPath>..\..\packages\AdvancedStringBuilder.0.1.0\lib\net45\AdvancedStringBuilder.dll</HintPath>
     </Reference>
-    <Reference Include="AjaxMin, Version=5.14.5506.26196, Culture=neutral, PublicKeyToken=21ef50ce11b5d80f, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\AjaxMin.5.14.5506.26202\lib\net40\AjaxMin.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="Antlr3.Runtime, Version=3.5.0.2, Culture=neutral, PublicKeyToken=eb42632606e9261f, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\packages\Antlr.3.5.0.2\lib\Antlr3.Runtime.dll</HintPath>
@@ -96,14 +92,20 @@
     <Reference Include="BundleTransformer.Core, Version=1.10.0.0, Culture=neutral, PublicKeyToken=973c344c93aac60d, processorArchitecture=MSIL">
       <HintPath>..\..\packages\BundleTransformer.Core.1.10.0\lib\net40\BundleTransformer.Core.dll</HintPath>
     </Reference>
-    <Reference Include="BundleTransformer.MicrosoftAjax, Version=1.10.0.0, Culture=neutral, PublicKeyToken=973c344c93aac60d, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\BundleTransformer.MicrosoftAjax.1.10.0\lib\net40\BundleTransformer.MicrosoftAjax.dll</HintPath>
+    <Reference Include="BundleTransformer.JsMin, Version=1.12.6.0, Culture=neutral, PublicKeyToken=973c344c93aac60d, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\BundleTransformer.JsMin.1.12.6\lib\net40\BundleTransformer.JsMin.dll</HintPath>
+    </Reference>
+    <Reference Include="BundleTransformer.NUglify, Version=1.12.9.0, Culture=neutral, PublicKeyToken=973c344c93aac60d, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\BundleTransformer.NUglify.1.12.9\lib\net40\BundleTransformer.NUglify.dll</HintPath>
     </Reference>
     <Reference Include="BundleTransformer.SassAndScss, Version=1.10.0.0, Culture=neutral, PublicKeyToken=973c344c93aac60d, processorArchitecture=MSIL">
       <HintPath>..\..\packages\BundleTransformer.SassAndScss.1.10.0\lib\net40\BundleTransformer.SassAndScss.dll</HintPath>
     </Reference>
     <Reference Include="ClearScript, Version=5.5.5.0, Culture=neutral, PublicKeyToken=935d0c957da47c73, processorArchitecture=MSIL">
       <HintPath>..\..\packages\JavaScriptEngineSwitcher.V8.3.0.5\lib\net45\ClearScript.dll</HintPath>
+    </Reference>
+    <Reference Include="DouglasCrockford.JsMin, Version=2.1.0.0, Culture=neutral, PublicKeyToken=99147aa1108448b7, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\DouglasCrockford.JsMin.2.1.0\lib\net45\DouglasCrockford.JsMin.dll</HintPath>
     </Reference>
     <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
       <HintPath>..\..\packages\EntityFramework.6.2.0\lib\net45\EntityFramework.dll</HintPath>
@@ -147,6 +149,9 @@
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Newtonsoft.Json.12.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="NUglify, Version=1.5.14.0, Culture=neutral, PublicKeyToken=15bc7810aec21b5e, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\NUglify.1.5.14\lib\net40\NUglify.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -334,6 +339,7 @@
     <Compile Include="Models\Catalog\ProductAskQuestionModel.cs" />
     <Compile Include="Models\Catalog\ProductSummaryModel.cs" />
     <Compile Include="Models\Catalog\ManufacturerOverviewModel.cs" />
+    <Compile Include="Models\Common\CookieManagerModel.cs" />
     <Compile Include="Models\Search\SearchBoxModel.cs" />
     <Compile Include="Models\Catalog\ProductsByTagModel.cs" />
     <Compile Include="Models\Catalog\PopularProductTagsModel.cs" />
@@ -511,6 +517,8 @@
     </Content>
     <Content Include="App_Data\Samples\brand\wilson.png" />
     <Content Include="App_Data\Samples\category\0000930_spiegel-bestseller.png" />
+    <Content Include="App_Data\Samples\category\sofas.jpg" />
+    <Content Include="App_Data\Samples\category\tables.jpg" />
     <Content Include="App_Data\Samples\product\0000932_uberman-der-roman.jpeg" />
     <Content Include="App_Data\Samples\product\0000935_der-gefangene-des-himmels-roman_300.jpeg" />
     <Content Include="App_Data\Samples\category\0000936_kochen-geniesen.jpeg" />
@@ -677,7 +685,10 @@
     <Content Include="App_Data\Samples\product\iphone-plus_silver.jpg" />
     <Content Include="App_Data\Samples\product\iphoneplus_1.jpg" />
     <Content Include="App_Data\Samples\product\iphoneplus_2.jpg" />
+    <Content Include="App_Data\Samples\product\isamu_noguchi_coffeetable_1.jpg" />
+    <Content Include="App_Data\Samples\product\isamu_noguchi_coffeetable_2.jpg" />
     <Content Include="App_Data\Samples\product\jack_wolfskin_kanuka_point_1.png" />
+    <Content Include="App_Data\Samples\product\josef_hoffmann_sofa_cubus_1.jpg" />
     <Content Include="App_Data\Samples\product\ladies_jacket_black.jpg" />
     <Content Include="App_Data\Samples\product\ladies_jacket_blue.jpg" />
     <Content Include="App_Data\Samples\product\ladies_jacket_green.jpg" />
@@ -686,6 +697,9 @@
     <Content Include="App_Data\Samples\product\ladies_jacket_red.jpg" />
     <Content Include="App_Data\Samples\product\ladies_jacket_silver.jpg" />
     <Content Include="App_Data\Samples\product\legoworlds.jpg" />
+    <Content Include="App_Data\Samples\product\le_corbusier_lc2_sofa_1.jpg" />
+    <Content Include="App_Data\Samples\product\mies_van_der_rohe_sofa_barcelona_1.jpg" />
+    <Content Include="App_Data\Samples\product\mies_van_der_rohe_tisch_barcelona_1.jpg" />
     <Content Include="App_Data\Samples\product\minecraft.jpg" />
     <Content Include="App_Data\Samples\product\nike-strike-football.jpg" />
     <Content Include="App_Data\Samples\product\nike-vopower-53-trainer-hs-ball.jpg" />
@@ -850,8 +864,13 @@
     <Content Include="Content\vendors\beautify\beautify-css.min.js" />
     <Content Include="Content\vendors\beautify\beautify-html.min.js" />
     <Content Include="Content\vendors\beautify\beautify.min.js" />
+    <Content Include="Content\vendors\Chart.js\Chart.js" />
+    <Content Include="Content\vendors\Chart.js\Chart.min.js" />
     <Content Include="Content\vendors\drift\Drift.js" />
     <Content Include="Content\vendors\drift\Drift.min.js" />
+    <Content Include="Content\vendors\dropzone\js\dropzone.min.js" />
+    <Content Include="Content\vendors\dropzone\js\dropzone.js" />
+    <Content Include="Scripts\smartstore.dropzoneWrapper.js" />
     <Content Include="Content\vendors\fa5\css\all.css" />
     <Content Include="Content\vendors\fa5\css\all.min.css" />
     <Content Include="Content\vendors\fa5\css\brands.css" />
@@ -869,14 +888,6 @@
     <Content Include="Content\vendors\fa5\webfonts\fa-brands-400.svg" />
     <Content Include="Content\vendors\fa5\webfonts\fa-regular-400.svg" />
     <Content Include="Content\vendors\fa5\webfonts\fa-solid-900.svg" />
-    <Content Include="Content\vendors\fileuploader\images\loading.gif" />
-    <Content Include="Content\vendors\fileuploader\images\progressbar.gif" />
-    <Content Include="Content\vendors\fileuploader\jquery.fileupload-fp.js" />
-    <Content Include="Content\vendors\fileuploader\jquery.fileupload-single-ui.js" />
-    <Content Include="Content\vendors\fileuploader\jquery.fileupload-ui.js" />
-    <Content Include="Content\vendors\fileuploader\jquery.fileupload.js" />
-    <Content Include="Content\vendors\fileuploader\jquery.iframe-transport.js" />
-    <Content Include="Content\vendors\fileuploader\locale.js" />
     <Content Include="Content\vendors\font-awesome\font-awesome.css" />
     <Content Include="Content\vendors\font-awesome\font-awesome.min.css" />
     <Content Include="App_GlobalResources\MvcLocalization.de.resx">
@@ -990,6 +1001,9 @@
     <Content Include="Content\vendors\select2\js\select2.js" />
     <Content Include="Content\vendors\select2\js\select2.min.js" />
     <Content Include="Content\vendors\slick\slick.js" />
+    <Content Include="Content\vendors\sortable\jquery-sortable.js" />
+    <Content Include="Content\vendors\vue\vue.min.js" />
+    <Content Include="Content\vendors\vue\vue.js" />
     <Content Include="Content\vendors\x-editable\bootstrap-editable.css" />
     <Content Include="Content\vendors\x-editable\bootstrap-editable.js" />
     <Content Include="Content\vendors\drift\LICENSE" />
@@ -1056,6 +1070,9 @@
     <Content Include="Content\shared\_tree.scss" />
     <Content Include="Content\bs4\scss\bootstrap-head.scss" />
     <Content Include="Content\bs4\scss\bootstrap-main.scss" />
+    <Content Include="Content\shared\_custom-scrollbar.scss" />
+    <Content Include="Content\shared\_custom-scrollbar-buttons.scss" />
+    <Content Include="Content\shared\_media.scss" />
     <None Include="Content\vendors\x-editable\README.txt" />
     <Content Include="favicon.ico" />
     <Content Include="favicon.readme.txt" />
@@ -1073,7 +1090,7 @@
     <Content Include="Content\vendors\jquery-ui\position.js" />
     <Content Include="Content\vendors\jquery-ui\widget.js" />
     <Content Include="Content\vendors\touchspin\jquery.bootstrap-touchspin.js" />
-    <Content Include="Content\vendors\jquery\jquery.sortable.js" />
+    <Content Include="Content\vendors\sortable\sortable.js" />
     <Content Include="Content\vendors\jquery\jquery.unobtrusive-ajax.js" />
     <Content Include="Content\vendors\jquery\jquery.unobtrusive-ajax.min.js" />
     <Content Include="Content\bs4\js\bootstrap.bundle.js.map" />
@@ -1198,6 +1215,8 @@
     <Content Include="Content\vendors\jquery\jquery.validate.unobtrusive.js" />
     <Content Include="Content\vendors\jquery\jquery.validate.unobtrusive.min.js" />
     <Content Include="Content\vendors\modernizr\modernizr.js" />
+    <Content Include="Scripts\smartstore.dialogs.js" />
+    <Content Include="Scripts\smartstore.media.js" />
     <Content Include="Scripts\smartstore.tree.js" />
     <Content Include="Scripts\smartstore.linkbuilder.js" />
     <Content Include="Scripts\smartstore.rangeslider.js" />
@@ -1808,13 +1827,12 @@
     <Content Include="Views\Shared\DisplayTemplates\DateTime.cshtml" />
     <Content Include="Themes\Flex\Content\_fonts.scss" />
     <Content Include="Views\ShoppingCart\Partials\_RefreshCartScript.cshtml" />
-    <Content Include="Views\Common\Partials\CookieConsentBadge.cshtml" />
     <Content Include="Views\Common\Partials\GdprConsent.cshtml" />
     <Content Include="Views\Shared\EditorTemplates\Byte.cshtml" />
     <Content Include="Views\Boards\Partials\Filters.cshtml" />
     <Content Include="Views\Shared\EditorTemplates\Html.cshtml" />
     <Content Include="Views\Shared\EditorTemplates\Liquid.cshtml" />
-    <Content Include="Views\Shared\EditorTemplates\Picture.cshtml" />
+    <Content Include="Views\Shared\EditorTemplates\Media.cshtml" />
     <Content Include="Views\Boards\Partials\InstantSearch.cshtml" />
     <Content Include="Views\Boards\Partials\SearchHits.cshtml" />
     <Content Include="Views\Shared\Partials\Customer.Avatar.cshtml" />
@@ -1836,6 +1854,15 @@
     <Content Include="Views\Blog\Partials\BlogSummaryList.cshtml" />
     <Content Include="Views\Blog\Partials\BlogSummaryHeading.cshtml" />
     <Content Include="Views\Blog\Partials\BlogSummary.cshtml" />
+    <Content Include="Views\Common\Partials\CookieManager.cshtml" />
+    <Content Include="Views\Shared\EditorTemplates\Int64.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Image.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Video.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Audio.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Document.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Text.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\Bin.cshtml" />
+    <Content Include="Views\Shared\MediaTemplates\_Thumbnail.cshtml" />
     <None Include="Web.EFMigrations.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

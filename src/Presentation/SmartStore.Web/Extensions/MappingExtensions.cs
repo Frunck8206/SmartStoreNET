@@ -12,7 +12,6 @@ using SmartStore.Services.Common;
 using SmartStore.Services.Customers;
 using SmartStore.Services.Directory;
 using SmartStore.Services.Localization;
-using SmartStore.Services.Media;
 using SmartStore.Services.Seo;
 using SmartStore.Web.Models.Catalog;
 using SmartStore.Web.Models.Common;
@@ -67,7 +66,7 @@ namespace SmartStore.Web
         /// </summary>
         /// <param name="customer">Customer entity.</param>
         /// <param name="genericAttributeService">Generic attribute service.</param>
-        /// <param name="pictureService">Picture service.</param>
+        /// <param name="mediaService">Media service.</param>
         /// <param name="customerSettings">Customer settings.</param>
         /// <param name="mediaSettings">Media settings.</param>
         /// <param name="urlHelper">URL helper.</param>
@@ -77,10 +76,8 @@ namespace SmartStore.Web
         public static CustomerAvatarModel ToAvatarModel(
             this Customer customer,
             IGenericAttributeService genericAttributeService,
-            IPictureService pictureService,
             CustomerSettings customerSettings,
             MediaSettings mediaSettings,
-            UrlHelper urlHelper,
             string userName = null,
             bool large = false)
         {
@@ -88,8 +85,11 @@ namespace SmartStore.Web
 
             var model = new CustomerAvatarModel
             {
+                Id = customer.Id,
                 Large = large,
-                UserName = userName
+                UserName = userName,
+                AllowViewingProfiles = customerSettings.AllowViewingProfiles,
+                AvatarPictureSize = mediaSettings.AvatarPictureSize
             };
 
             if (customer.IsGuest())
@@ -124,18 +124,12 @@ namespace SmartStore.Web
                     model.AvatarLetter = '?';
                 }
 
-                if (customerSettings.AllowViewingProfiles)
-                {
-                    model.LinkUrl = urlHelper.RouteUrl("CustomerProfile", new { id = customer.Id });
-                }
-
                 if (customerSettings.AllowCustomersToUploadAvatars)
                 {
-                    var avatarId = customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId, genericAttributeService);
-                    model.PictureUrl = pictureService.GetUrl(avatarId, mediaSettings.AvatarPictureSize, FallbackPictureType.NoFallback);
+                    model.FileId = customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId, genericAttributeService);
                 }
 
-                if (model.PictureUrl.IsEmpty())
+                if (!model.FileId.HasValue)
                 {
                     model.AvatarColor = customer.GetAvatarColor(genericAttributeService);
                 }
