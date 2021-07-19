@@ -26,7 +26,7 @@
                 // set type selector to initial type from current expression
                 var currentType = $el.find('a[data-type="' + self.currentType + '"]');
 
-                if (self.currentType != "") 
+                if (self.currentType != "")
                     self._updateTypeInfo(currentType);
 
             }, 100);
@@ -53,7 +53,7 @@
                 $el = $(self.element);
 
             // switch link type
-            $el.on("click", ".link-type", function(e) {
+            $el.on("click", ".link-type", function (e) {
                 e.preventDefault();
 
                 var el = $(this);
@@ -101,7 +101,7 @@
             });
 
             // reset control
-            $el.on("click", ".btn-reset", function () {                
+            $el.on("click", ".btn-reset", function () {
                 self.templateValueField.val('');
                 self.queryStringCtrl.val('');
                 self.controls.find('.resettable:visible').val('').trigger('change');
@@ -120,19 +120,15 @@
             // browse files
             $el.on("click", ".browse-files", function (e) {
                 e.preventDefault();
-                var el = $(this),
-                    url = el.data('url');
+                var fieldId = $(this).data('field-id');
 
-                url = modifyUrl(url, 'type', '#');
-                url = modifyUrl(url, 'field', el.data('field-id'));
-                url = modifyUrl(url, 'mid', 'modal-browse-files');
-
-                openPopup({
-                    id: 'modal-browse-files',
-                    url: url,
-                    flex: true,
-                    large: true,
-                    backdrop: false
+                SmartStore.media.openFileManager({
+                    el: this,
+                    backdrop: false,
+                    onSelect: function (files) {
+                        if (!files.length) return;
+                        $('#' + fieldId).val(files[0].url).trigger('change');
+                    }
                 });
             });
         },
@@ -204,4 +200,4 @@
         });
     };
 
-})( jQuery, this, document );
+})(jQuery, this, document);

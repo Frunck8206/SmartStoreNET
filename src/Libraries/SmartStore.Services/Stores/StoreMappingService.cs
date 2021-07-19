@@ -8,240 +8,247 @@ using SmartStore.Core.Domain.Stores;
 
 namespace SmartStore.Services.Stores
 {
-	public partial class StoreMappingService : IStoreMappingService
-	{
-		/// <summary>
-		/// 0 = segment (EntityName.IdRange)
-		/// </summary>
-		const string STOREMAPPING_SEGMENT_KEY = "storemapping:range-{0}";
-		const string STOREMAPPING_SEGMENT_PATTERN = "storemapping:range-*";
+    public partial class StoreMappingService : IStoreMappingService
+    {
+        /// <summary>
+        /// 0 = segment (EntityName.IdRange)
+        /// </summary>
+        const string STOREMAPPING_SEGMENT_KEY = "storemapping:range-{0}";
+        internal const string STOREMAPPING_SEGMENT_PATTERN = "storemapping:range-*";
 
-		private readonly IRepository<StoreMapping> _storeMappingRepository;
-		private readonly IStoreContext _storeContext;
-		private readonly IStoreService _storeService;
-		private readonly ICacheManager _cacheManager;
+        private readonly IRepository<StoreMapping> _storeMappingRepository;
+        private readonly IStoreContext _storeContext;
+        private readonly IStoreService _storeService;
+        private readonly ICacheManager _cacheManager;
 
-		public StoreMappingService(
-			ICacheManager cacheManager,
-			IStoreContext storeContext,
-			IStoreService storeService,
-			IRepository<StoreMapping> storeMappingRepository)
-		{
-			_cacheManager = cacheManager;
-			_storeContext = storeContext;
-			_storeService = storeService;
-			_storeMappingRepository = storeMappingRepository;
+        public StoreMappingService(
+            ICacheManager cacheManager,
+            IStoreContext storeContext,
+            IStoreService storeService,
+            IRepository<StoreMapping> storeMappingRepository)
+        {
+            _cacheManager = cacheManager;
+            _storeContext = storeContext;
+            _storeService = storeService;
+            _storeMappingRepository = storeMappingRepository;
 
-			QuerySettings = DbQuerySettings.Default;
-		}
+            QuerySettings = DbQuerySettings.Default;
+        }
 
-		public DbQuerySettings QuerySettings { get; set; }
+        public DbQuerySettings QuerySettings { get; set; }
 
-		public virtual void DeleteStoreMapping(StoreMapping storeMapping)
-		{
-			Guard.NotNull(storeMapping, nameof(storeMapping));
+        public virtual void DeleteStoreMapping(StoreMapping storeMapping)
+        {
+            Guard.NotNull(storeMapping, nameof(storeMapping));
 
-			_storeMappingRepository.Delete(storeMapping);
+            _storeMappingRepository.Delete(storeMapping);
 
-			ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
-		}
+            ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
+        }
 
-		public virtual StoreMapping GetStoreMappingById(int storeMappingId)
-		{
-			if (storeMappingId == 0)
-				return null;
+        public virtual StoreMapping GetStoreMappingById(int storeMappingId)
+        {
+            if (storeMappingId == 0)
+                return null;
 
-			var storeMapping = _storeMappingRepository.GetById(storeMappingId);
-			return storeMapping;
-		}
+            var storeMapping = _storeMappingRepository.GetById(storeMappingId);
+            return storeMapping;
+        }
 
-		public virtual IList<StoreMapping> GetStoreMappings<T>(T entity) where T : BaseEntity, IStoreMappingSupported
-		{
-			Guard.NotNull(entity, nameof(entity));
+        public virtual IList<StoreMapping> GetStoreMappings<T>(T entity) where T : BaseEntity, IStoreMappingSupported
+        {
+            Guard.NotNull(entity, nameof(entity));
 
-			int entityId = entity.Id;
-			string entityName = entity.GetEntityName();
+            int entityId = entity.Id;
+            string entityName = entity.GetEntityName();
 
-			var query = from sm in _storeMappingRepository.Table
-						where sm.EntityId == entityId &&
-						sm.EntityName == entityName
-						select sm;
-			var storeMappings = query.ToList();
-			return storeMappings;
-		}
+            var query = from sm in _storeMappingRepository.Table
+                        where sm.EntityId == entityId &&
+                        sm.EntityName == entityName
+                        select sm;
+            var storeMappings = query.ToList();
+            return storeMappings;
+        }
 
-		public virtual IQueryable<StoreMapping> GetStoreMappingsFor(string entityName, int entityId)
-		{
-			var query = _storeMappingRepository.Table;
+        public virtual IQueryable<StoreMapping> GetStoreMappingsFor(string entityName, int entityId)
+        {
+            var query = _storeMappingRepository.Table;
 
-			if (entityName.HasValue())
-				query = query.Where(x => x.EntityName == entityName);
+            if (entityName.HasValue())
+                query = query.Where(x => x.EntityName == entityName);
 
-			if (entityId != 0)
-				query = query.Where(x => x.EntityId == entityId);
+            if (entityId != 0)
+                query = query.Where(x => x.EntityId == entityId);
 
-			return query;
-		}
+            return query;
+        }
 
-		public virtual void SaveStoreMappings<T>(T entity, int[] selectedStoreIds) where T : BaseEntity, IStoreMappingSupported
-		{
-			var existingStoreMappings = GetStoreMappings(entity);
-			var allStores = _storeService.GetAllStores();
+        public virtual void SaveStoreMappings<T>(T entity, int[] selectedStoreIds) where T : BaseEntity, IStoreMappingSupported
+        {
+            var existingStoreMappings = GetStoreMappings(entity);
+            var allStores = _storeService.GetAllStores();
+            var selectedIds = selectedStoreIds ?? Array.Empty<int>();
 
-			foreach (var store in allStores)
-			{
-				if (selectedStoreIds != null && selectedStoreIds.Contains(store.Id))
-				{
-					if (!existingStoreMappings.Any(x => x.StoreId == store.Id))
-						InsertStoreMapping(entity, store.Id);
-				}
-				else
-				{
-					var storeMappingToDelete = existingStoreMappings.FirstOrDefault(x => x.StoreId == store.Id);
-					if (storeMappingToDelete != null)
-						DeleteStoreMapping(storeMappingToDelete);
-				}
-			}
-		}
+            entity.LimitedToStores = selectedIds.Length == 1 && selectedIds[0] == 0
+                ? false
+                : selectedIds.Any();
 
-		public virtual void InsertStoreMapping(StoreMapping storeMapping)
-		{
-			Guard.NotNull(storeMapping, nameof(storeMapping));
+            foreach (var store in allStores)
+            {
+                if (selectedIds.Contains(store.Id))
+                {
+                    if (!existingStoreMappings.Any(x => x.StoreId == store.Id))
+                        InsertStoreMapping(entity, store.Id);
+                }
+                else
+                {
+                    var storeMappingToDelete = existingStoreMappings.FirstOrDefault(x => x.StoreId == store.Id);
+                    if (storeMappingToDelete != null)
+                        DeleteStoreMapping(storeMappingToDelete);
+                }
+            }
 
-			_storeMappingRepository.Insert(storeMapping);
+            _storeMappingRepository.Context.SaveChanges();
+        }
 
-			ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
-		}
+        public virtual void InsertStoreMapping(StoreMapping storeMapping)
+        {
+            Guard.NotNull(storeMapping, nameof(storeMapping));
 
-		public virtual void InsertStoreMapping<T>(T entity, int storeId) where T : BaseEntity, IStoreMappingSupported
-		{
-			Guard.NotNull(entity, nameof(entity));
+            _storeMappingRepository.Insert(storeMapping);
 
-			if (storeId == 0)
-				throw new ArgumentOutOfRangeException(nameof(storeId));
+            ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
+        }
 
-			int entityId = entity.Id;
-			string entityName = entity.GetEntityName();
+        public virtual void InsertStoreMapping<T>(T entity, int storeId) where T : BaseEntity, IStoreMappingSupported
+        {
+            Guard.NotNull(entity, nameof(entity));
 
-			var storeMapping = new StoreMapping
-			{
-				EntityId = entityId,
-				EntityName = entityName,
-				StoreId = storeId
-			};
+            if (storeId == 0)
+                throw new ArgumentOutOfRangeException(nameof(storeId));
 
-			InsertStoreMapping(storeMapping);
-		}
+            int entityId = entity.Id;
+            string entityName = entity.GetEntityName();
 
-		public virtual void UpdateStoreMapping(StoreMapping storeMapping)
-		{
-			Guard.NotNull(storeMapping, nameof(storeMapping));
+            var storeMapping = new StoreMapping
+            {
+                EntityId = entityId,
+                EntityName = entityName,
+                StoreId = storeId
+            };
 
-			_storeMappingRepository.Update(storeMapping);
+            InsertStoreMapping(storeMapping);
+        }
 
-			ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
-		}
+        public virtual void UpdateStoreMapping(StoreMapping storeMapping)
+        {
+            Guard.NotNull(storeMapping, nameof(storeMapping));
 
-		public virtual int[] GetStoresIdsWithAccess(string entityName, int entityId)
-		{
-			Guard.NotEmpty(entityName, nameof(entityName));
+            _storeMappingRepository.Update(storeMapping);
 
-			if (entityId <= 0)
-				return new int[0];
+            ClearCacheSegment(storeMapping.EntityName, storeMapping.EntityId);
+        }
 
-			var cacheSegment = GetCacheSegment(entityName, entityId);
+        public virtual int[] GetStoresIdsWithAccess(string entityName, int entityId)
+        {
+            Guard.NotEmpty(entityName, nameof(entityName));
 
-			if (!cacheSegment.TryGetValue(entityId, out var storeIds))
-			{
-				return Array.Empty<int>();
-			}
+            if (entityId <= 0)
+                return new int[0];
 
-			return storeIds;
-		}
+            var cacheSegment = GetCacheSegment(entityName, entityId);
 
-		public bool Authorize(string entityName, int entityId)
-		{
-			return Authorize(entityName, entityId, _storeContext.CurrentStore.Id);
-		}
+            if (!cacheSegment.TryGetValue(entityId, out var storeIds))
+            {
+                return Array.Empty<int>();
+            }
 
-		public virtual bool Authorize(string entityName, int entityId, int storeId)
-		{
-			Guard.NotEmpty(entityName, nameof(entityName));
+            return storeIds;
+        }
 
-			if (entityId <= 0)
-				return false;
+        public bool Authorize(string entityName, int entityId)
+        {
+            return Authorize(entityName, entityId, _storeContext.CurrentStore.Id);
+        }
 
-			if (storeId <= 0)
-				// return true if no store specified/found
-				return true;
+        public virtual bool Authorize(string entityName, int entityId, int storeId)
+        {
+            Guard.NotEmpty(entityName, nameof(entityName));
 
-			if (QuerySettings.IgnoreMultiStore)
-				return true;
+            if (entityId <= 0)
+                return false;
 
-			// Permission granted only when the id list contains the passed storeId
-			return GetStoresIdsWithAccess(entityName, entityId).Any(x => x == storeId);
-		}
+            if (storeId <= 0)
+                // return true if no store specified/found
+                return true;
 
-		#region Cache segmenting
+            if (QuerySettings.IgnoreMultiStore)
+                return true;
 
-		protected virtual IDictionary<int, int[]> GetCacheSegment(string entityName, int entityId)
-		{
-			Guard.NotEmpty(entityName, nameof(entityName));
+            // Permission granted only when the id list contains the passed storeId
+            return GetStoresIdsWithAccess(entityName, entityId).Any(x => x == storeId);
+        }
 
-			var segmentKey = GetSegmentKeyPart(entityName, entityId, out var minEntityId, out var maxEntityId);
-			var cacheKey = BuildCacheSegmentKey(segmentKey);
+        #region Cache segmenting
 
-			return _cacheManager.Get(cacheKey, () =>
-			{
-				var query = from sm in _storeMappingRepository.TableUntracked
-							where
-								sm.EntityId >= minEntityId &&
-								sm.EntityId <= maxEntityId &&
-								sm.EntityName == entityName
-							select sm;
+        protected virtual IDictionary<int, int[]> GetCacheSegment(string entityName, int entityId)
+        {
+            Guard.NotEmpty(entityName, nameof(entityName));
 
-				var mappings = query.ToLookup(x => x.EntityId, x => x.StoreId);
+            var segmentKey = GetSegmentKeyPart(entityName, entityId, out var minEntityId, out var maxEntityId);
+            var cacheKey = BuildCacheSegmentKey(segmentKey);
 
-				var dict = new Dictionary<int, int[]>(mappings.Count);
+            return _cacheManager.Get(cacheKey, () =>
+            {
+                var query = from sm in _storeMappingRepository.TableUntracked
+                            where
+                                sm.EntityId >= minEntityId &&
+                                sm.EntityId <= maxEntityId &&
+                                sm.EntityName == entityName
+                            select sm;
 
-				foreach (var sm in mappings)
-				{
-					dict[sm.Key] = sm.ToArray();
-				}
+                var mappings = query.ToLookup(x => x.EntityId, x => x.StoreId);
 
-				return dict;
-			});
-		}
+                var dict = new Dictionary<int, int[]>(mappings.Count);
 
-		/// <summary>
-		/// Clears the cached segment from the cache
-		/// </summary>
-		protected virtual void ClearCacheSegment(string entityName, int entityId)
-		{
-			try
-			{
-				var segmentKey = GetSegmentKeyPart(entityName, entityId);
-				_cacheManager.Remove(BuildCacheSegmentKey(segmentKey));
-			}
-			catch { }
-		}
+                foreach (var sm in mappings)
+                {
+                    dict[sm.Key] = sm.ToArray();
+                }
 
-		private string BuildCacheSegmentKey(string segment)
-		{
-			return String.Format(STOREMAPPING_SEGMENT_KEY, segment);
-		}
+                return dict;
+            });
+        }
 
-		private string GetSegmentKeyPart(string entityName, int entityId)
-		{
-			return GetSegmentKeyPart(entityName, entityId, out _, out _);
-		}
+        /// <summary>
+        /// Clears the cached segment from the cache
+        /// </summary>
+        protected virtual void ClearCacheSegment(string entityName, int entityId)
+        {
+            try
+            {
+                var segmentKey = GetSegmentKeyPart(entityName, entityId);
+                _cacheManager.Remove(BuildCacheSegmentKey(segmentKey));
+            }
+            catch { }
+        }
 
-		private string GetSegmentKeyPart(string entityName, int entityId, out int minId, out int maxId)
-		{
-			maxId = entityId.GetRange(1000, out minId);
-			return (entityName + "." + maxId.ToString()).ToLowerInvariant();
-		}
+        private string BuildCacheSegmentKey(string segment)
+        {
+            return String.Format(STOREMAPPING_SEGMENT_KEY, segment);
+        }
 
-		#endregion
-	}
+        private string GetSegmentKeyPart(string entityName, int entityId)
+        {
+            return GetSegmentKeyPart(entityName, entityId, out _, out _);
+        }
+
+        private string GetSegmentKeyPart(string entityName, int entityId, out int minId, out int maxId)
+        {
+            (minId, maxId) = entityId.GetRange(1000);
+            return (entityName + "." + minId.ToString()).ToLowerInvariant();
+        }
+
+        #endregion
+    }
 }

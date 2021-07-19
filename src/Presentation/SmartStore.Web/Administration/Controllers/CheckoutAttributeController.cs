@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Web.Mvc;
 using SmartStore.Admin.Models.Orders;
 using SmartStore.Core;
@@ -14,7 +13,6 @@ using SmartStore.Services.Localization;
 using SmartStore.Services.Orders;
 using SmartStore.Services.Stores;
 using SmartStore.Services.Tax;
-using SmartStore.Web.Framework;
 using SmartStore.Web.Framework.Controllers;
 using SmartStore.Web.Framework.Filters;
 using SmartStore.Web.Framework.Security;
@@ -179,6 +177,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cart.CheckoutAttribute.Create)]
         public ActionResult Create(CheckoutAttributeModel model, bool continueEditing)
         {
@@ -221,6 +220,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cart.CheckoutAttribute.Update)]
         public ActionResult Edit(CheckoutAttributeModel model, bool continueEditing)
         {
@@ -250,6 +250,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cart.CheckoutAttribute.Delete)]
         public ActionResult DeleteConfirmed(int id)
         {
@@ -312,6 +313,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cart.CheckoutAttribute.Update)]
         public ActionResult ValueCreatePopup(string btnId, string formId, CheckoutAttributeValueModel model)
         {
@@ -361,6 +363,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cart.CheckoutAttribute.Update)]
         public ActionResult ValueEditPopup(string btnId, string formId, CheckoutAttributeValueModel model)
         {

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
+using System.ComponentModel.DataAnnotations.Schema;
 using SmartStore.Core.Domain.Localization;
 using SmartStore.Core.Domain.Media;
 using SmartStore.Core.Domain.Seo;
@@ -11,14 +11,26 @@ namespace SmartStore.Core.Domain.News
     /// <summary>
     /// Represents a news item
     /// </summary>
-	public partial class NewsItem : BaseEntity, ISlugSupported, IStoreMappingSupported
+	public partial class NewsItem : BaseEntity, ISlugSupported, IStoreMappingSupported, ILocalizedEntity
     {
-        private ICollection<NewsComment> _newsComments;
+        #region static
 
-        /// <summary>
-        /// Gets or sets the language identifier
-        /// </summary>
-        public int LanguageId { get; set; }
+        private static readonly List<string> _visibilityAffectingProps = new List<string>
+        {
+            nameof(NewsItem.Published),
+            nameof(NewsItem.StartDateUtc),
+            nameof(NewsItem.EndDateUtc),
+            nameof(NewsItem.LimitedToStores)
+        };
+
+        public static IReadOnlyCollection<string> GetVisibilityAffectingPropertyNames()
+        {
+            return _visibilityAffectingProps;
+        }
+
+        #endregion
+
+        private ICollection<NewsComment> _newsComments;
 
         /// <summary>
         /// Gets or sets the news title
@@ -81,6 +93,7 @@ namespace SmartStore.Core.Domain.News
         /// </remarks>
         /// </summary>
         public int ApprovedCommentCount { get; set; }
+
         /// <summary>
         /// Gets or sets the total number of not approved comments
         /// <remarks>The same as if we run newsItem.NewsComments.Where(n => !n.IsApproved).Count()
@@ -89,10 +102,10 @@ namespace SmartStore.Core.Domain.News
         /// </summary>
         public int NotApprovedCommentCount { get; set; }
 
-		/// <summary>
-		/// Gets or sets a value indicating whether the entity is limited/restricted to certain stores
-		/// </summary>
-		public bool LimitedToStores { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether the entity is limited/restricted to certain stores
+        /// </summary>
+        public bool LimitedToStores { get; set; }
 
         /// <summary>
         /// Gets or sets the date and time of entity creation
@@ -115,17 +128,23 @@ namespace SmartStore.Core.Domain.News
         public string MetaTitle { get; set; }
 
         /// <summary>
+        /// Gets or sets a language identifier for which the news item should be displayed.
+        /// </summary>
+        [Index]
+        public int? LanguageId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the language.
+        /// </summary>
+        public virtual Language Language { get; set; }
+
+        /// <summary>
         /// Gets or sets the news comments
         /// </summary>
         public virtual ICollection<NewsComment> NewsComments
         {
-			get { return _newsComments ?? (_newsComments = new HashSet<NewsComment>()); }
-            protected set { _newsComments = value; }
+            get => _newsComments ?? (_newsComments = new HashSet<NewsComment>());
+            protected set => _newsComments = value;
         }
-        
-        /// <summary>
-        /// Gets or sets the language
-        /// </summary>
-        public virtual Language Language { get; set; }
     }
 }

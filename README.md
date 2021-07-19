@@ -1,3 +1,9 @@
+| <div align="left">:information_source: **[Announcement: Porting Smartstore to cross-platform ASP.NET Core 5!](https://github.com/smartstore/Smartstore)**</div> |
+| --- |
+| We are currently working hard on porting Smartstore from classic ASP.NET MVC to ASP.NET Core 5. For best code quality we decided to port class by class and adapt the existing code to the new environment. Therefore we have created a **[new repository](https://github.com/smartstore/Smartstore)** where we do all the work. Of course, work in this repository continues as usual. **Give our new repository a star** to stay up-to-date, get involved or just watch how we're doing. Learn all about the latest development, participate actively and last but not least, don't miss the day of release. |
+
+<br/>
+
 <p align="center">
 	<a href="https://www.smartstore.com" target="_blank" rel="noopener noreferrer">
 		<img src="assets/smartstore-icon.png" alt="Smartstore.NET" width="200">
@@ -23,7 +29,7 @@
 
 <p align="center">
 	<a href="#try-it-online">Try Online</a> ∙
-    <a href="http://docs.smartstore.com/display/SMNET/SmartStore.NET+Documentation+Home">Docs</a> ∙ 
+    <a href="http://docs.smartstore.com/display/SMNET">Docs</a> ∙ 
 	<a href="http://community.smartstore.com">Forum</a> ∙ 
 	<a href="http://community.smartstore.com/marketplace">Marketplace</a> ∙ 
 	<a href="http://translate.smartstore.com/">Translations</a>
@@ -48,8 +54,9 @@ The state-of-the-art architecture of Smartstore - with `ASP.NET 4.5` + `MVC 5`, 
 * **Forum:** [http://community.smartstore.com](http://community.smartstore.com)
 * **Marketplace:** [http://community.smartstore.com/marketplace](http://community.smartstore.com/marketplace)
 * **Translations:** [http://translate.smartstore.com/](http://translate.smartstore.com/)
-* **Documentation:** [Smartstore Documentation in English](http://docs.smartstore.com/display/SMNET/SmartStore.NET+Documentation+Home)
+* **Documentation:** [Smartstore Documentation in English](http://docs.smartstore.com/display/SMNET)
 * **Developer Extension:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=SmartStoreAG.Smartstore)
+* **Azure Marketplace:** [Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/smartstore-ag.smartstorenet?tab=Overview)
 
 <p>&nbsp;</p>
 
@@ -119,8 +126,8 @@ Smartstore V4.0.0 has been released on 25 June, 2020. The highlights are:
 
 We have set up a live online demo for you so you are able to test Smartstore without local installation. Get a first impression and test all available features in the front- and in the backend. Please keep in mind that the backend demo is shared and other testers can modify data at the same time.
 
-* [**Frontend**](http://frontend.smartstore.net/en) (User: demo, PWD: 1234)
-* [**Backend**](http://backend.smartstore.net/en/login) (User: demo, PWD: 1234)
+* [**Frontend**](https://demo.smartstore.com/frontend/en) (User: demo, PWD: 1234)
+* [**Backend**](https://demo.smartstore.com/backend/en/login) (User: demo, PWD: 1234)
 
 
 
@@ -138,7 +145,7 @@ NOTE: Smartstore 4 requires [Visual C++ Redistributable für Visual Studio 2015]
 * IIS 7+
 * ASP.NET 4.5+
 * MS SQL Server 2008 Express (or higher) OR MS SQL Server Compact 4
-* Visual C++ Redistributable für Visual Studio 2015 ([Download](https://www.microsoft.com/en-US/download/details.aspx?id=52685))
+* Visual C++ Redistributable für Visual Studio 2015-2019 ([Download](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads))
 * Full Trust
 
 

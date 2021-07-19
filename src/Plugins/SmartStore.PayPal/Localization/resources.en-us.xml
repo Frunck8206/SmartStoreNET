@@ -15,7 +15,9 @@
     <LocaleResource Name="Enums.SmartStore.PayPal.Services.PayPalPromotion.TextOnly" AppendRootKey="false">
         <Value>Only text</Value>
     </LocaleResource>
-
+    <LocaleResource Name="CookieInfo">
+      <Value>PayPal uses cookies to display and process the payment transaction via PayPal.</Value>
+    </LocaleResource>
     <LocaleResource Name="AccessData">
         <Value>Access data</Value>
     </LocaleResource>
@@ -56,7 +58,7 @@
         <Value>The PayPal session expired. Please try again.</Value>
     </LocaleResource>
     <LocaleResource Name="PayPalValidationFailure">
-        <Value>PayPal was unable to verify the transmitted data.</Value>
+        <Value>PayPal was unable to verify the transmitted data. Please check your data (especially billing and shipping address) and try again.</Value>
     </LocaleResource>
     <LocaleResource Name="Promotion">
         <Value>Promotion</Value>

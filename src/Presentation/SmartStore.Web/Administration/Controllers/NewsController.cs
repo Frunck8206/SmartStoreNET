@@ -8,6 +8,7 @@ using SmartStore.Core.Domain.Common;
 using SmartStore.Core.Domain.News;
 using SmartStore.Core.Html;
 using SmartStore.Core.Security;
+using SmartStore.Data.Utilities;
 using SmartStore.Services.Customers;
 using SmartStore.Services.Helpers;
 using SmartStore.Services.Localization;
@@ -25,27 +26,23 @@ namespace SmartStore.Admin.Controllers
     [AdminAuthorize]
     public class NewsController : AdminControllerBase
     {
-        #region Fields
-
         private readonly INewsService _newsService;
         private readonly ILanguageService _languageService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly ICustomerContentService _customerContentService;
+        private readonly ILocalizedEntityService _localizedEntityService;
         private readonly IUrlRecordService _urlRecordService;
         private readonly IStoreService _storeService;
         private readonly IStoreMappingService _storeMappingService;
         private readonly ICustomerService _customerService;
         private readonly AdminAreaSettings _adminAreaSettings;
 
-        #endregion
-
-        #region Constructors
-
         public NewsController(
             INewsService newsService,
             ILanguageService languageService,
             IDateTimeHelper dateTimeHelper,
             ICustomerContentService customerContentService,
+            ILocalizedEntityService localizedEntityService,
             IUrlRecordService urlRecordService,
             IStoreService storeService,
             IStoreMappingService storeMappingService,
@@ -56,6 +53,7 @@ namespace SmartStore.Admin.Controllers
             _languageService = languageService;
             _dateTimeHelper = dateTimeHelper;
             _customerContentService = customerContentService;
+            _localizedEntityService = localizedEntityService;
             _urlRecordService = urlRecordService;
             _storeService = storeService;
             _storeMappingService = storeMappingService;
@@ -63,24 +61,78 @@ namespace SmartStore.Admin.Controllers
             _adminAreaSettings = adminAreaSettings;
         }
 
-        #endregion
-
         #region Utilities
 
-        [NonAction]
-        private void PrepareStoresMappingModel(NewsItemModel model, NewsItem newsItem, bool excludeProperties)
+        private void UpdateLocales(NewsItem newsItem, NewsItemModel model)
         {
-            Guard.NotNull(model, nameof(model));
+            foreach (var localized in model.Locales)
+            {
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.Title, localized.Title, localized.LanguageId);
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.Short, localized.Short, localized.LanguageId);
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.Full, localized.Full, localized.LanguageId);
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.MetaKeywords, localized.MetaKeywords, localized.LanguageId);
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.MetaDescription, localized.MetaDescription, localized.LanguageId);
+                _localizedEntityService.SaveLocalizedValue(newsItem, x => x.MetaTitle, localized.MetaTitle, localized.LanguageId);
 
-            if (!excludeProperties)
+                var seName = newsItem.ValidateSeName(localized.SeName, localized.Title, false, localized.LanguageId);
+                _urlRecordService.SaveSlug(newsItem, seName, localized.LanguageId);
+            }
+        }
+
+        private void PrepareNewsItemModel(NewsItemModel model, NewsItem newsItem)
+        {
+            if (newsItem != null)
             {
                 model.SelectedStoreIds = _storeMappingService.GetStoresIdsWithAccess(newsItem);
             }
+
+            var allLanguages = _languageService.GetAllLanguages(true);
+            model.AvailableLanguages = allLanguages
+                .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
+                .ToList();
+
+            model.IsSingleLanguageMode = allLanguages.Count <= 1;
         }
 
         #endregion
 
         #region News items
+
+        // AJAX.
+        public ActionResult AllNews(string selectedIds)
+        {
+            var query = _newsService.GetAllNews(0, 0, int.MaxValue, 0, true).SourceQuery;
+            var pager = new FastPager<NewsItem>(query, 500);
+            var allNewsItems = new List<dynamic>();
+            var ids = selectedIds.ToIntArray().ToList();
+
+            while (pager.ReadNextPage(out var newsItems))
+            {
+                foreach (var newsItem in newsItems)
+                {
+                    dynamic obj = new
+                    {
+                        newsItem.Id,
+                        newsItem.CreatedOnUtc,
+                        Title = newsItem.GetLocalized(x => x.Title).Value
+                    };
+
+                    allNewsItems.Add(obj);
+                }
+            }
+
+            var data = allNewsItems
+                .OrderByDescending(x => x.CreatedOnUtc)
+                .Select(x => new ChoiceListItem
+                {
+                    Id = x.Id.ToString(),
+                    Text = x.Title,
+                    Selected = ids.Contains(x.Id)
+                })
+                .ToList();
+
+            return new JsonResult { Data = data, JsonRequestBehavior = JsonRequestBehavior.AllowGet };
+        }
 
         public ActionResult Index()
         {
@@ -90,12 +142,19 @@ namespace SmartStore.Admin.Controllers
         [Permission(Permissions.Cms.News.Read)]
         public ActionResult List()
         {
-            var model = new NewsItemListModel();
+            var allLanguages = _languageService.GetAllLanguages(true);
 
-            foreach (var s in _storeService.GetAllStores())
+            var model = new NewsItemListModel
             {
-                model.AvailableStores.Add(new SelectListItem { Text = s.Name, Value = s.Id.ToString() });
-            }
+                IsSingleStoreMode = _storeService.IsSingleStoreMode(),
+                IsSingleLanguageMode = allLanguages.Count <= 1,
+                GridPageSize = _adminAreaSettings.GridPageSize,
+                SearchEndDate = DateTime.UtcNow
+            };
+
+            model.AvailableLanguages = allLanguages
+                .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString() })
+                .ToList();
 
             return View(model);
         }
@@ -104,7 +163,16 @@ namespace SmartStore.Admin.Controllers
         [Permission(Permissions.Cms.News.Read)]
         public ActionResult List(GridCommand command, NewsItemListModel model)
         {
-            var news = _newsService.GetAllNews(0, model.SearchStoreId, command.Page - 1, command.PageSize, true);
+            var news = _newsService.GetAllNews(
+                model.SearchStoreId,
+                command.Page - 1,
+                command.PageSize,
+                model.SearchLanguageId,
+                true,
+                null,
+                model.SearchTitle, 
+                model.SearchShort, 
+                model.SearchFull);
 
             var gridModel = new GridModel<NewsItemModel>
             {
@@ -125,11 +193,15 @@ namespace SmartStore.Admin.Controllers
                 }
 
                 m.CreatedOn = _dateTimeHelper.ConvertToUserTime(x.CreatedOnUtc, DateTimeKind.Utc);
-                m.LanguageName = x.Language.Name;
                 m.Comments = x.ApprovedCommentCount + x.NotApprovedCommentCount;
 
+                if (x.LanguageId.HasValue)
+                {
+                    m.LanguageName = x.Language?.Name;
+                }
+
                 return m;
-            });
+            }).Where(x => x.Published == model.SearchIsPublished || model.SearchIsPublished == null);
 
             return new JsonResult
             {
@@ -140,25 +212,21 @@ namespace SmartStore.Admin.Controllers
         [Permission(Permissions.Cms.News.Create)]
         public ActionResult Create()
         {
-            ViewBag.AllLanguages = _languageService.GetAllLanguages(true);
-
             var model = new NewsItemModel
             {
                 Published = true,
-                AllowComments = true
+                AllowComments = true,
+                CreatedOn = DateTime.UtcNow
             };
 
-            PrepareStoresMappingModel(model, null, false);
-
-            //default values
-            model.Published = true;
-            model.AllowComments = true;
-            model.CreatedOn = DateTime.UtcNow;
+            AddLocales(_languageService, model.Locales);
+            PrepareNewsItemModel(model, null);
 
             return View(model);
         }
 
         [HttpPost, ValidateInput(false), ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cms.News.Create)]
         public ActionResult Create(NewsItemModel model, bool continueEditing, FormCollection form)
         {
@@ -169,11 +237,13 @@ namespace SmartStore.Admin.Controllers
                 newsItem.StartDateUtc = model.StartDate;
                 newsItem.EndDateUtc = model.EndDate;
                 newsItem.CreatedOnUtc = model.CreatedOn;
+
                 _newsService.InsertNews(newsItem);
 
-                // Search engine name.
-                var seName = newsItem.ValidateSeName(model.SeName, model.Title, true);
-                _urlRecordService.SaveSlug(newsItem, seName, newsItem.LanguageId);
+                model.SeName = newsItem.ValidateSeName(model.SeName, newsItem.Title, true);
+                _urlRecordService.SaveSlug(newsItem, model.SeName, 0);
+
+                UpdateLocales(newsItem, model);
 
                 SaveStoreMappings(newsItem, model.SelectedStoreIds);
 
@@ -184,9 +254,7 @@ namespace SmartStore.Admin.Controllers
             }
 
             // If we got this far, something failed, redisplay form.
-            ViewBag.AllLanguages = _languageService.GetAllLanguages(true);
-
-            PrepareStoresMappingModel(model, null, true);
+            PrepareNewsItemModel(model, null);
 
             return View(model);
         }
@@ -196,27 +264,42 @@ namespace SmartStore.Admin.Controllers
         {
             var newsItem = _newsService.GetNewsById(id);
             if (newsItem == null)
+            {
                 return RedirectToAction("List");
-
-            ViewBag.AllLanguages = _languageService.GetAllLanguages(true);
+            }
 
             var model = newsItem.ToModel();
+
+            AddLocales(_languageService, model.Locales, (locale, languageId) =>
+            {
+                locale.Title = newsItem.GetLocalized(x => x.Title, languageId, false, false);
+                locale.Short = newsItem.GetLocalized(x => x.Short, languageId, false, false);
+                locale.Full = newsItem.GetLocalized(x => x.Full, languageId, false, false);
+                locale.MetaKeywords = newsItem.GetLocalized(x => x.MetaKeywords, languageId, false, false);
+                locale.MetaDescription = newsItem.GetLocalized(x => x.MetaDescription, languageId, false, false);
+                locale.MetaTitle = newsItem.GetLocalized(x => x.MetaTitle, languageId, false, false);
+                locale.SeName = newsItem.GetSeName(languageId, false, false);
+            });
+
             model.StartDate = newsItem.StartDateUtc;
             model.EndDate = newsItem.EndDateUtc;
             model.CreatedOn = newsItem.CreatedOnUtc;
 
-            PrepareStoresMappingModel(model, newsItem, false);
+            PrepareNewsItemModel(model, newsItem);
 
             return View(model);
         }
 
         [HttpPost, ValidateInput(false), ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cms.News.Update)]
         public ActionResult Edit(NewsItemModel model, bool continueEditing, FormCollection form)
         {
             var newsItem = _newsService.GetNewsById(model.Id);
             if (newsItem == null)
+            {
                 return RedirectToAction("List");
+            }
 
             if (ModelState.IsValid)
             {
@@ -225,35 +308,38 @@ namespace SmartStore.Admin.Controllers
                 newsItem.StartDateUtc = model.StartDate;
                 newsItem.EndDateUtc = model.EndDate;
                 newsItem.CreatedOnUtc = model.CreatedOn;
-                _newsService.UpdateNews(newsItem);
 
-                // Search engine name.
-                var seName = newsItem.ValidateSeName(model.SeName, model.Title, true);
-                _urlRecordService.SaveSlug(newsItem, seName, newsItem.LanguageId);
+                model.SeName = newsItem.ValidateSeName(model.SeName, newsItem.Title, true);
+                _urlRecordService.SaveSlug(newsItem, model.SeName, 0);
+
+                UpdateLocales(newsItem, model);
+
+                _newsService.UpdateNews(newsItem);
 
                 SaveStoreMappings(newsItem, model.SelectedStoreIds);
 
                 Services.EventPublisher.Publish(new ModelBoundEvent(model, newsItem, form));
-
                 NotifySuccess(T("Admin.ContentManagement.News.NewsItems.Updated"));
+
                 return continueEditing ? RedirectToAction("Edit", new { id = newsItem.Id }) : RedirectToAction("List");
             }
 
             // If we got this far, something failed, redisplay form.
-            ViewBag.AllLanguages = _languageService.GetAllLanguages(true);
-
-            PrepareStoresMappingModel(model, newsItem, true);
+            PrepareNewsItemModel(model, newsItem);
 
             return View(model);
         }
 
         [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cms.News.Delete)]
         public ActionResult DeleteConfirmed(int id)
         {
             var newsItem = _newsService.GetNewsById(id);
             if (newsItem == null)
+            {
                 return RedirectToAction("List");
+            }
 
             _newsService.DeleteNews(newsItem);
 
@@ -262,6 +348,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Cms.News.Delete)]
         public ActionResult DeleteSelected(ICollection<int> selectedIds)
         {
@@ -324,7 +411,7 @@ namespace SmartStore.Admin.Controllers
                 {
                     Id = newsComment.Id,
                     NewsItemId = newsComment.NewsItemId,
-                    NewsItemTitle = newsComment.NewsItem.Title,
+                    NewsItemTitle = newsComment.NewsItem.GetLocalized(x => x.Title),
                     CustomerId = newsComment.CustomerId,
                     IpAddress = newsComment.IpAddress,
                     CreatedOn = _dateTimeHelper.ConvertToUserTime(newsComment.CreatedOnUtc, DateTimeKind.Utc),

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Web.Mvc;
@@ -101,6 +100,7 @@ namespace SmartStore.Admin.Controllers
         private readonly SearchSettings _searchSettings;
         private readonly ShoppingCartSettings _shoppingCartSettings;
         private readonly Lazy<MediaSettings> _mediaSettings;
+        private readonly IMediaService _mediaService;
 
         #endregion
 
@@ -148,7 +148,8 @@ namespace SmartStore.Admin.Controllers
             AdminAreaSettings adminAreaSettings,
             SearchSettings searchSettings,
             ShoppingCartSettings shoppingCartSettings,
-            Lazy<MediaSettings> mediaSettings)
+            Lazy<MediaSettings> mediaSettings,
+            IMediaService mediaService)
         {
             _orderService = orderService;
             _orderReportService = orderReportService;
@@ -193,6 +194,7 @@ namespace SmartStore.Admin.Controllers
             _searchSettings = searchSettings;
             _shoppingCartSettings = shoppingCartSettings;
             _mediaSettings = mediaSettings;
+            _mediaService = mediaService;
         }
 
         #endregion
@@ -922,17 +924,27 @@ namespace SmartStore.Admin.Controllers
                 })
                 .ToList();
 
-            model.GridPageSize = _adminAreaSettings.GridPageSize;
-
             return View(model);
+        }
+
+        [ChildActionOnly]
+        public ActionResult OrderGrid(OrderListModel model, int? productId, bool hideProfitReport = false)
+        {
+            if (productId.GetValueOrDefault() > 0)
+            {
+                model.ProductId = productId;
+            }
+
+            model.GridPageSize = _adminAreaSettings.GridPageSize;
+            model.HideProfitReport = hideProfitReport;
+
+            return PartialView(model);
         }
 
         [GridAction(EnableCustomBinding = true)]
         [Permission(Permissions.Order.Read)]
         public ActionResult OrderList(GridCommand command, OrderListModel model)
         {
-            var gridModel = new GridModel<OrderModel>();
-
             DateTime? startDateValue = (model.StartDate == null) ? null : (DateTime?)_dateTimeHelper.ConvertToUtcTime(model.StartDate.Value, _dateTimeHelper.CurrentTimeZone);
             DateTime? endDateValue = (model.EndDate == null) ? null : (DateTime?)_dateTimeHelper.ConvertToUtcTime(model.EndDate.Value, _dateTimeHelper.CurrentTimeZone).AddDays(1);
 
@@ -944,90 +956,136 @@ namespace SmartStore.Admin.Controllers
             var shippingStatusIds = model.ShippingStatusIds.ToIntArray();
             var paymentMethods = new Dictionary<string, Provider<IPaymentMethod>>(StringComparer.OrdinalIgnoreCase);
             Provider<IPaymentMethod> paymentMethod = null;
+            IPagedList<Order> orders;
 
-            var orders = _orderService.SearchOrders(model.StoreId, 0, startDateValue, endDateValue, orderStatusIds, paymentStatusIds, shippingStatusIds,
-                model.CustomerEmail, model.OrderGuid, model.OrderNumber, command.Page - 1, command.PageSize, model.CustomerName, model.PaymentMethods.SplitSafe(","));
-
-            gridModel.Data = orders.Select(x =>
+            // Product Id is only used and filled in context of product details (orders)           
+            // When no product Id is assigned, OrderList is used to prepare for orders list
+            var product = _productService.GetProductById(model.ProductId.GetValueOrDefault());
+            if (product == null)
             {
-                var store = Services.StoreService.GetStoreById(x.StoreId);
-
-                var orderModel = new OrderModel
-                {
-                    Id = x.Id,
-                    OrderNumber = x.GetOrderNumber(),
-                    StoreName = store != null ? store.Name : "".NaIfEmpty(),
-                    OrderTotal = _priceFormatter.FormatPrice(x.OrderTotal, true, false),
-                    OrderStatus = x.OrderStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    StatusOrder = x.OrderStatus,
-                    PaymentStatus = x.PaymentStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    StatusPayment = x.PaymentStatus,
-                    IsShippable = x.ShippingStatus != ShippingStatus.ShippingNotRequired,
-                    ShippingStatus = x.ShippingStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    StatusShipping = x.ShippingStatus,
-                    ShippingMethod = x.ShippingMethod.NullEmpty() ?? "".NaIfEmpty(),
-                    CustomerName = x.BillingAddress.GetFullName(),
-                    CustomerEmail = x.BillingAddress.Email,
-                    CreatedOn = _dateTimeHelper.ConvertToUserTime(x.CreatedOnUtc, DateTimeKind.Utc),
-                    HasNewPaymentNotification = x.HasNewPaymentNotification
-                };
-
-                orderModel.CreatedOnString = orderModel.CreatedOn.ToString("g");
-
-                if (x.PaymentMethodSystemName.HasValue())
-                {
-                    if (!paymentMethods.TryGetValue(x.PaymentMethodSystemName, out paymentMethod))
+                orders = _orderService.SearchOrders(model.StoreId, 0, startDateValue, endDateValue, orderStatusIds,
+                    paymentStatusIds, shippingStatusIds, model.CustomerEmail, model.OrderGuid, model.OrderNumber,
+                    command.Page - 1, command.PageSize, model.CustomerName, model.PaymentMethods.SplitSafe(","));
+            }
+            else
+            {
+                orders = _orderService.SearchOrders(0, 0, null, null, null, null, null, null, null, null, command.Page - 1, command.PageSize)
+                    .AlterQuery(q =>
                     {
-                        paymentMethod = _paymentService.LoadPaymentMethodBySystemName(x.PaymentMethodSystemName);
-                        paymentMethods[x.PaymentMethodSystemName] = paymentMethod;
-                    }
-                    if (paymentMethod != null)
-                    {
-                        orderModel.PaymentMethod = _pluginMediator.GetLocalizedFriendlyName(paymentMethod.Metadata);
-                    }
-                }
+                        return q.Where(x => x.OrderItems.Any(p => p.ProductId == model.ProductId));
+                    }).Load();
 
-                if (orderModel.PaymentMethod.IsEmpty())
+            }
+
+            var gridModel = new GridModel<OrderModel>
+            {
+                Data = orders.Select(x =>
                 {
-                    orderModel.PaymentMethod = x.PaymentMethodSystemName;
-                }
+                    var store = Services.StoreService.GetStoreById(x.StoreId);
 
-                orderModel.HasPaymentMethod = orderModel.PaymentMethod.HasValue();
-
-                if (x.ShippingAddress != null && orderModel.IsShippable)
-                {
-                    orderModel.ShippingAddressString = string.Concat(
-                        x.ShippingAddress.Address1,
-                        ", ",
-                        x.ShippingAddress.ZipPostalCode,
-                        " ",
-                        x.ShippingAddress.City);
-
-                    if (x.ShippingAddress.CountryId > 0)
+                    var orderModel = new OrderModel
                     {
-                        orderModel.ShippingAddressString += ", " + x.ShippingAddress.Country.TwoLetterIsoCode;
+                        Id = x.Id,
+                        OrderNumber = x.GetOrderNumber(),
+                        StoreName = store != null ? store.Name : "".NaIfEmpty(),
+                        OrderStatus = x.OrderStatus.GetLocalizedEnum(_localizationService, _workContext),
+                        OrderTotal = _priceFormatter.FormatPrice(x.OrderTotal, true, false),
+                        StatusOrder = x.OrderStatus,
+                        PaymentStatus = x.PaymentStatus.GetLocalizedEnum(_localizationService, _workContext),
+                        StatusPayment = x.PaymentStatus,
+                        IsShippable = x.ShippingStatus != ShippingStatus.ShippingNotRequired,
+                        ShippingStatus = x.ShippingStatus.GetLocalizedEnum(_localizationService, _workContext),
+                        StatusShipping = x.ShippingStatus,
+                        ShippingMethod = x.ShippingMethod.NullEmpty() ?? "".NaIfEmpty(),
+                        CustomerName = x.BillingAddress.GetFullName(),
+                        CustomerEmail = x.BillingAddress.Email,
+                        CreatedOn = _dateTimeHelper.ConvertToUserTime(x.CreatedOnUtc, DateTimeKind.Utc),
+                        HasNewPaymentNotification = x.HasNewPaymentNotification
+                    };
+
+                    if (product != null)
+                    {
+                        var productOrders = x.OrderItems.Where(y => y.ProductId == model.ProductId);
+                        var orderTotal = productOrders.Select(p => p.PriceInclTax).Sum();
+                        orderModel.OrderTotal = _priceFormatter.FormatPrice(orderTotal, true, false);
+                        orderModel.Quantity = productOrders.Select(y => y.Quantity).Sum();
                     }
-                }
 
-                orderModel.ViaShippingMethod = viaShippingMethodString.FormatInvariant(orderModel.ShippingMethod);
-                orderModel.WithPaymentMethod = withPaymentMethodString.FormatInvariant(orderModel.PaymentMethod);
-                orderModel.FromStore = fromStoreString.FormatInvariant(orderModel.StoreName);
+                    orderModel.CreatedOnString = orderModel.CreatedOn.ToString("g");
 
-                return orderModel;
-            });
+                    if (x.PaymentMethodSystemName.HasValue())
+                    {
+                        if (!paymentMethods.TryGetValue(x.PaymentMethodSystemName, out paymentMethod))
+                        {
+                            paymentMethod = _paymentService.LoadPaymentMethodBySystemName(x.PaymentMethodSystemName);
+                            paymentMethods[x.PaymentMethodSystemName] = paymentMethod;
+                        }
+                        if (paymentMethod != null)
+                        {
+                            orderModel.PaymentMethod = _pluginMediator.GetLocalizedFriendlyName(paymentMethod.Metadata);
+                        }
+                    }
 
-            gridModel.Total = orders.TotalCount;
+                    if (orderModel.PaymentMethod.IsEmpty())
+                    {
+                        orderModel.PaymentMethod = x.PaymentMethodSystemName;
+                    }
+
+                    orderModel.HasPaymentMethod = orderModel.PaymentMethod.HasValue();
+
+                    if (x.ShippingAddress != null && orderModel.IsShippable)
+                    {
+                        orderModel.ShippingAddressString = string.Concat(
+                            x.ShippingAddress.Address1,
+                            ", ",
+                            x.ShippingAddress.ZipPostalCode,
+                            " ",
+                            x.ShippingAddress.City);
+
+                        if (x.ShippingAddress.CountryId > 0)
+                        {
+                            orderModel.ShippingAddressString += ", " + x.ShippingAddress.Country.TwoLetterIsoCode;
+                        }
+                    }
+
+                    orderModel.ViaShippingMethod = viaShippingMethodString.FormatInvariant(orderModel.ShippingMethod);
+                    orderModel.WithPaymentMethod = withPaymentMethodString.FormatInvariant(orderModel.PaymentMethod);
+                    orderModel.FromStore = fromStoreString.FormatInvariant(orderModel.StoreName);
+
+                    return orderModel;
+                }),
+
+                Total = orders.TotalCount
+            };
 
             // Summary report.
             // Implemented as a workaround described here: http://www.telerik.com/community/forums/aspnet-mvc/grid/gridmodel-aggregates-how-to-use.aspx.
-            var summary = _orderReportService.GetOrderAverageReportLine(orders.SourceQuery);
-            var profit = _orderReportService.GetProfit(orders.SourceQuery);
+            decimal sumProfit, sumTax, sumTotals;
+            if (product != null)
+            {
+                var productOrders = orders
+                    .SelectMany(x => x.OrderItems)
+                    .Where(y => y.ProductId == model.ProductId && y.Order.OrderStatusId != (int)OrderStatus.Cancelled);
+
+                var totalsWithoutTax = productOrders.Select(p => p.PriceExclTax).Sum();
+                var productCost = productOrders.Select(p => p.ProductCost).Sum();
+                sumTotals = productOrders.Select(p => p.PriceInclTax).Sum();
+                sumTax = sumTotals - totalsWithoutTax;
+                sumProfit = totalsWithoutTax - productCost;
+            }
+            else
+            {
+                var summary = _orderReportService.GetOrderAverageReportLine(orders.SourceQuery);
+                sumTax = summary.SumTax;
+                sumTotals = summary.SumOrders;
+                sumProfit = _orderReportService.GetProfit(orders.SourceQuery);
+            }
 
             gridModel.Aggregates = new OrderModel
             {
-                AggregatorProfit = _priceFormatter.FormatPrice(profit, true, false),
-                AggregatorTax = _priceFormatter.FormatPrice(summary.SumTax, true, false),
-                AggregatorTotal = _priceFormatter.FormatPrice(summary.SumOrders, true, false)
+                AggregatorProfit = _priceFormatter.FormatPrice(sumProfit, true, false),
+                AggregatorTax = _priceFormatter.FormatPrice(sumTax, true, false),
+                AggregatorTotal = _priceFormatter.FormatPrice(sumTotals, true, false)
             };
 
             return new JsonResult
@@ -1053,6 +1111,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult ProcessOrder(string operation, string selectedIds)
         {
@@ -1068,18 +1127,21 @@ namespace SmartStore.Admin.Controllers
             var skipped = 0;
             var errors = 0;
             var errorMessages = new HashSet<string>();
+            var succeededOrderNumbers = new HashSet<string>();
 
             foreach (var o in orders)
             {
                 try
                 {
+                    var succeeded = false;
+
                     switch (operation)
                     {
                         case "cancel":
                             if (_orderProcessingService.CanCancelOrder(o))
                             {
                                 _orderProcessingService.CancelOrder(o, true);
-                                ++success;
+                                succeeded = true;
                             }
                             else
                             {
@@ -1090,7 +1152,7 @@ namespace SmartStore.Admin.Controllers
                             if (_orderProcessingService.CanCompleteOrder(o))
                             {
                                 _orderProcessingService.CompleteOrder(o);
-                                ++success;
+                                succeeded = true;
                             }
                             else
                             {
@@ -1101,7 +1163,7 @@ namespace SmartStore.Admin.Controllers
                             if (_orderProcessingService.CanMarkOrderAsPaid(o))
                             {
                                 _orderProcessingService.MarkOrderAsPaid(o);
-                                ++success;
+                                succeeded = true;
                             }
                             else
                             {
@@ -1114,7 +1176,7 @@ namespace SmartStore.Admin.Controllers
                                 var captureErrors = _orderProcessingService.Capture(o);
                                 errorMessages.AddRange(captureErrors);
                                 if (!captureErrors.Any())
-                                    ++success;
+                                    succeeded = true;
                             }
                             else
                             {
@@ -1125,7 +1187,7 @@ namespace SmartStore.Admin.Controllers
                             if (_orderProcessingService.CanRefundOffline(o))
                             {
                                 _orderProcessingService.RefundOffline(o);
-                                ++success;
+                                succeeded = true;
                             }
                             else
                             {
@@ -1138,7 +1200,7 @@ namespace SmartStore.Admin.Controllers
                                 var refundErrors = _orderProcessingService.Refund(o);
                                 errorMessages.AddRange(refundErrors);
                                 if (!refundErrors.Any())
-                                    ++success;
+                                    succeeded = true;
                             }
                             else
                             {
@@ -1149,7 +1211,7 @@ namespace SmartStore.Admin.Controllers
                             if (_orderProcessingService.CanVoidOffline(o))
                             {
                                 _orderProcessingService.VoidOffline(o);
-                                ++success;
+                                succeeded = true;
                             }
                             else
                             {
@@ -1162,13 +1224,19 @@ namespace SmartStore.Admin.Controllers
                                 var voidErrors = _orderProcessingService.Void(o);
                                 errorMessages.AddRange(voidErrors);
                                 if (!voidErrors.Any())
-                                    ++success;
+                                    succeeded = true;
                             }
                             else
                             {
                                 ++skipped;
                             }
                             break;
+                    }
+
+                    if (succeeded)
+                    {
+                        ++success;
+                        succeededOrderNumbers.Add(o.GetOrderNumber());
                     }
                 }
                 catch (Exception ex)
@@ -1186,6 +1254,11 @@ namespace SmartStore.Admin.Controllers
             errorMessages.Take(maxErrors).Each(x => msg.Append($"<div class='text-danger mt-2'>{x}</div>"));
 
             NotifyInfo(msg.ToString());
+
+            if (succeededOrderNumbers.Any())
+            {
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", string.Join(", ", succeededOrderNumbers.OrderBy(x => x))));
+            }
 
             return RedirectToAction("List");
         }
@@ -1209,6 +1282,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("cancelorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult CancelOrder(int id)
         {
@@ -1221,6 +1295,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.CancelOrder(order, true);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -1232,6 +1308,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("completeorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult CompleteOrder(int id)
         {
@@ -1244,6 +1321,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.CompleteOrder(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -1255,6 +1334,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("captureorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult CaptureOrder(int id)
         {
@@ -1271,6 +1351,11 @@ namespace SmartStore.Admin.Controllers
                 {
                     NotifyError(error);
                 }
+
+                if (!errors.Any())
+                {
+                    _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+                }
             }
             catch (Exception ex)
             {
@@ -1282,6 +1367,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markorderaspaid")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult MarkOrderAsPaid(int id)
         {
@@ -1294,6 +1380,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.MarkOrderAsPaid(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -1305,6 +1393,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("refundorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult RefundOrder(int id)
         {
@@ -1321,6 +1410,11 @@ namespace SmartStore.Admin.Controllers
                 {
                     NotifyError(error);
                 }
+
+                if (!errors.Any())
+                {
+                    _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+                }
             }
             catch (Exception ex)
             {
@@ -1332,6 +1426,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("refundorderoffline")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult RefundOrderOffline(int id)
         {
@@ -1344,6 +1439,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.RefundOffline(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -1355,6 +1452,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("voidorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult VoidOrder(int id)
         {
@@ -1371,6 +1469,11 @@ namespace SmartStore.Admin.Controllers
                 {
                     NotifyError(error);
                 }
+
+                if (!errors.Any())
+                {
+                    _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+                }
             }
             catch (Exception ex)
             {
@@ -1382,6 +1485,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("voidorderoffline")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult VoidOrderOffline(int id)
         {
@@ -1394,6 +1498,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.VoidOffline(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -1420,6 +1526,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost]
         [FormValueRequired("partialrefundorder")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult PartiallyRefundOrderPopup(string btnId, string formId, int id, bool online, OrderModel model)
         {
@@ -1455,6 +1562,8 @@ namespace SmartStore.Admin.Controllers
 
                 if (errors.Count == 0)
                 {
+                    _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
                     ViewBag.RefreshPage = true;
                     ViewBag.btnId = btnId;
                     ViewBag.formId = formId;
@@ -1500,6 +1609,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Delete)]
         public ActionResult Delete(int id)
         {
@@ -1509,9 +1619,9 @@ namespace SmartStore.Admin.Controllers
                 return RedirectToAction("List");
             }
 
-            _orderProcessingService.DeleteOrder(order);
-
             var msg = T("ActivityLog.DeleteOrder", order.GetOrderNumber());
+
+            _orderProcessingService.DeleteOrder(order);
 
             _customerActivityService.InsertActivity("DeleteOrder", msg);
             NotifySuccess(msg);
@@ -1527,6 +1637,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveCC")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult EditCreditCardInfo(int id, OrderModel model)
         {
@@ -1538,21 +1649,17 @@ namespace SmartStore.Admin.Controllers
 
             if (order.AllowStoringCreditCardNumber)
             {
-                string cardType = model.CardType;
-                string cardName = model.CardName;
-                string cardNumber = model.CardNumber;
-                string cardCvv2 = model.CardCvv2;
-                string cardExpirationMonth = model.CardExpirationMonth;
-                string cardExpirationYear = model.CardExpirationYear;
+                order.CardType = _encryptionService.EncryptText(model.CardType);
+                order.CardName = _encryptionService.EncryptText(model.CardName);
+                order.CardNumber = _encryptionService.EncryptText(model.CardNumber);
+                order.MaskedCreditCardNumber = _encryptionService.EncryptText(_paymentService.GetMaskedCreditCardNumber(model.CardNumber));
+                order.CardCvv2 = _encryptionService.EncryptText(model.CardCvv2);
+                order.CardExpirationMonth = _encryptionService.EncryptText(model.CardExpirationMonth);
+                order.CardExpirationYear = _encryptionService.EncryptText(model.CardExpirationYear);
 
-                order.CardType = _encryptionService.EncryptText(cardType);
-                order.CardName = _encryptionService.EncryptText(cardName);
-                order.CardNumber = _encryptionService.EncryptText(cardNumber);
-                order.MaskedCreditCardNumber = _encryptionService.EncryptText(_paymentService.GetMaskedCreditCardNumber(cardNumber));
-                order.CardCvv2 = _encryptionService.EncryptText(cardCvv2);
-                order.CardExpirationMonth = _encryptionService.EncryptText(cardExpirationMonth);
-                order.CardExpirationYear = _encryptionService.EncryptText(cardExpirationYear);
                 _orderService.UpdateOrder(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
 
             PrepareOrderDetailsModel(model, order);
@@ -1561,6 +1668,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveDD")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult EditDirectDebitInfo(int id, OrderModel model)
         {
@@ -1572,24 +1680,17 @@ namespace SmartStore.Admin.Controllers
 
             if (order.AllowStoringDirectDebit)
             {
-
-                string accountHolder = model.DirectDebitAccountHolder;
-                string accountNumber = model.DirectDebitAccountNumber;
-                string bankCode = model.DirectDebitBankCode;
-                string bankName = model.DirectDebitBankName;
-                string bic = model.DirectDebitBIC;
-                string country = model.DirectDebitCountry;
-                string iban = model.DirectDebitIban;
-
-                order.DirectDebitAccountHolder = _encryptionService.EncryptText(accountHolder);
-                order.DirectDebitAccountNumber = _encryptionService.EncryptText(accountNumber);
-                order.DirectDebitBankCode = _encryptionService.EncryptText(bankCode);
-                order.DirectDebitBankName = _encryptionService.EncryptText(bankName);
-                order.DirectDebitBIC = _encryptionService.EncryptText(bic);
-                order.DirectDebitCountry = _encryptionService.EncryptText(country);
-                order.DirectDebitIban = _encryptionService.EncryptText(iban);
+                order.DirectDebitAccountHolder = _encryptionService.EncryptText(model.DirectDebitAccountHolder);
+                order.DirectDebitAccountNumber = _encryptionService.EncryptText(model.DirectDebitAccountNumber);
+                order.DirectDebitBankCode = _encryptionService.EncryptText(model.DirectDebitBankCode);
+                order.DirectDebitBankName = _encryptionService.EncryptText(model.DirectDebitBankName);
+                order.DirectDebitBIC = _encryptionService.EncryptText(model.DirectDebitBIC);
+                order.DirectDebitCountry = _encryptionService.EncryptText(model.DirectDebitCountry);
+                order.DirectDebitIban = _encryptionService.EncryptText(model.DirectDebitIban);
 
                 _orderService.UpdateOrder(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
             }
 
             PrepareOrderDetailsModel(model, order);
@@ -1599,6 +1700,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveOrderTotals")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult EditOrderTotals(int id, OrderModel model)
         {
@@ -1622,13 +1724,17 @@ namespace SmartStore.Admin.Controllers
             order.CreditBalance = model.CreditBalanceValue;
             order.OrderTotalRounding = model.OrderTotalRoundingValue;
             order.OrderTotal = model.OrderTotalValue;
+
             _orderService.UpdateOrder(order);
+
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
 
             PrepareOrderDetailsModel(model, order);
             return View(model);
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditItem)]
         public ActionResult EditOrderItem(AutoUpdateOrderItemModel model, FormCollection form)
         {
@@ -1638,7 +1744,7 @@ namespace SmartStore.Admin.Controllers
                 return HttpNotFound();
             }
 
-            int orderId = oi.Order.Id;
+            var orderId = oi.Order.Id;
 
             if (model.NewQuantity.HasValue)
             {
@@ -1647,6 +1753,8 @@ namespace SmartStore.Admin.Controllers
                     OrderItem = oi,
                     QuantityOld = oi.Quantity,
                     QuantityNew = model.NewQuantity.Value,
+                    PriceInclTaxOld = oi.PriceInclTax,
+                    PriceExclTaxOld = oi.PriceExclTax,
                     AdjustInventory = model.AdjustInventory,
                     UpdateRewardPoints = model.UpdateRewardPoints,
                     UpdateTotals = model.UpdateTotals
@@ -1665,11 +1773,13 @@ namespace SmartStore.Admin.Controllers
 
                 _orderProcessingService.AutoUpdateOrderDetails(context);
 
-                // we do not delete order item automatically anymore.
+                // We do not delete an order item automatically anymore.
                 //if (oi.Quantity <= 0)
                 //{
                 //	_orderService.DeleteOrderItem(oi);
                 //}
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", oi.Order.GetOrderNumber()));
 
                 TempData[AutoUpdateOrderItemContext.InfoKey] = context.ToString(_localizationService);
             }
@@ -1678,6 +1788,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditItem)]
         public ActionResult DeleteOrderItem(AutoUpdateOrderItemModel model)
         {
@@ -1687,7 +1798,9 @@ namespace SmartStore.Admin.Controllers
                 return HttpNotFound();
             }
 
-            int orderId = oi.Order.Id;
+            var orderId = oi.Order.Id;
+            var orderNumber = oi.Order.GetOrderNumber();
+
             var context = new AutoUpdateOrderItemContext
             {
                 OrderItem = oi,
@@ -1702,6 +1815,8 @@ namespace SmartStore.Admin.Controllers
 
             _orderService.DeleteOrderItem(oi);
 
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", orderNumber));
+
             TempData[AutoUpdateOrderItemContext.InfoKey] = context.ToString(_localizationService);
 
             return RedirectToAction("Edit", new { id = orderId });
@@ -1710,6 +1825,7 @@ namespace SmartStore.Admin.Controllers
         [HttpPost, ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnAddReturnRequest")]
         [ValidateInput(false)]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.ReturnRequest.Create)]
         public ActionResult AddReturnRequest(int id, FormCollection form)
         {
@@ -1762,6 +1878,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ValidateInput(false), ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnResetDownloadCount")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult ResetDownloadCount(int id, FormCollection form)
         {
@@ -1790,13 +1907,17 @@ namespace SmartStore.Admin.Controllers
             orderItem.DownloadCount = 0;
             _orderService.UpdateOrder(order);
 
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
             var model = new OrderModel();
             PrepareOrderDetailsModel(model, order);
+
             return View(model);
         }
 
         [HttpPost, ValidateInput(false), ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnPvActivateDownload")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult ActivateDownloadOrderItem(int id, FormCollection form)
         {
@@ -1824,8 +1945,11 @@ namespace SmartStore.Admin.Controllers
             orderItem.IsDownloadActivated = !orderItem.IsDownloadActivated;
             _orderService.UpdateOrder(order);
 
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
             var model = new OrderModel();
             PrepareOrderDetailsModel(model, order);
+
             return View(model);
         }
 
@@ -1852,6 +1976,7 @@ namespace SmartStore.Admin.Controllers
             var model = new OrderModel.UploadLicenseModel
             {
                 LicenseDownloadId = orderItem.LicenseDownloadId ?? 0,
+                OldLicenseDownloadId = orderItem.LicenseDownloadId ?? 0,
                 OrderId = order.Id,
                 OrderItemId = orderItem.Id
             };
@@ -1861,6 +1986,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost]
         [FormValueRequired("uploadlicense")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult UploadLicenseFilePopup(string btnId, string formId, OrderModel.UploadLicenseModel model)
         {
@@ -1876,14 +2002,52 @@ namespace SmartStore.Admin.Controllers
                 return HttpNotFound();
             }
 
-            // Attach license.
-            if (model.LicenseDownloadId > 0)
-                orderItem.LicenseDownloadId = model.LicenseDownloadId;
-            else
-                orderItem.LicenseDownloadId = null;
+            var isUrlDownload = Request.Form["is-url-download-" + model.LicenseDownloadId] == "true";
+            var setOldFileToTransient = false;
 
-            MediaHelper.UpdateDownloadTransientStateFor(orderItem, x => x.LicenseDownloadId);
+            if (model.LicenseDownloadId != model.OldLicenseDownloadId && model.LicenseDownloadId != 0 && !isUrlDownload)
+            {
+                // Insert download if a new file was uploaded.
+                var mediaFileInfo = _mediaService.GetFileById(model.LicenseDownloadId);
+                var download = new Download
+                {
+                    MediaFile = mediaFileInfo.File,
+                    EntityId = model.OrderId,
+                    EntityName = "LicenseDownloadId",
+                    DownloadGuid = Guid.NewGuid(),
+                    UseDownloadUrl = false,
+                    DownloadUrl = string.Empty,
+                    UpdatedOnUtc = DateTime.UtcNow,
+                    IsTransient = false
+                };
+
+                _downloadService.InsertDownload(download);
+                orderItem.LicenseDownloadId = download.Id;
+
+                setOldFileToTransient = true;
+            }
+            else if (isUrlDownload)
+            {
+                var download = _downloadService.GetDownloadById(model.LicenseDownloadId);
+                download.IsTransient = false;
+                _downloadService.UpdateDownload(download);
+
+                orderItem.LicenseDownloadId = model.LicenseDownloadId;
+
+                setOldFileToTransient = true;
+            }
+
+            if (setOldFileToTransient && model.OldLicenseDownloadId > 0)
+            {
+                // Set old download to transient if LicenseDownloadId is 0.
+                var oldDownload = _downloadService.GetDownloadById(model.OldLicenseDownloadId);
+                oldDownload.IsTransient = true;
+                _downloadService.UpdateDownload(oldDownload);
+            }
+            
             _orderService.UpdateOrder(order);
+
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
 
             ViewBag.RefreshPage = true;
             ViewBag.btnId = btnId;
@@ -1894,6 +2058,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("UploadLicenseFilePopup")]
         [FormValueRequired("deletelicense")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult DeleteLicenseFilePopup(string btnId, string formId, OrderModel.UploadLicenseModel model)
         {
@@ -1909,10 +2074,16 @@ namespace SmartStore.Admin.Controllers
                 return HttpNotFound();
             }
 
-            // Attach license.
+            // Set deleted file to transient.
+            var download = _downloadService.GetDownloadById((int)model.OldLicenseDownloadId);
+            download.IsTransient = true;
+            _downloadService.UpdateDownload(download);
+
+            // Detach license.
             orderItem.LicenseDownloadId = null;
-            MediaHelper.UpdateDownloadTransientStateFor(orderItem, x => x.LicenseDownloadId);
             _orderService.UpdateOrder(order);
+
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
 
             ViewBag.RefreshPage = true;
             ViewBag.btnId = btnId;
@@ -1996,6 +2167,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ValidateInput(false)]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditItem)]
         public ActionResult AddProductToOrderDetails(int orderId, int productId, bool adjustInventory, bool? updateTotals, ProductVariantQuery query, FormCollection form)
         {
@@ -2004,17 +2176,12 @@ namespace SmartStore.Admin.Controllers
             var currency = _currencyService.GetCurrencyByCode(order.CustomerCurrencyCode);
             var includingTax = _workContext.TaxDisplayType == TaxDisplayType.IncludingTax;
 
-            var unitPriceInclTax = decimal.Zero;
-            decimal.TryParse(form["UnitPriceInclTax"], out unitPriceInclTax);
-            var unitPriceExclTax = decimal.Zero;
-            decimal.TryParse(form["UnitPriceExclTax"], out unitPriceExclTax);
+            decimal.TryParse(form["UnitPriceInclTax"], out decimal unitPriceInclTax);
+            decimal.TryParse(form["UnitPriceExclTax"], out decimal unitPriceExclTax);
+            decimal.TryParse(form["SubTotalInclTax"], out decimal priceInclTax);
+            decimal.TryParse(form["SubTotalExclTax"], out decimal priceExclTax);
+            decimal.TryParse(form["TaxRate"], out decimal unitPriceTaxRate);
             int.TryParse(form["Quantity"], out var quantity);
-            var priceInclTax = decimal.Zero;
-            decimal.TryParse(form["SubTotalInclTax"], out priceInclTax);
-            var priceExclTax = decimal.Zero;
-            decimal.TryParse(form["SubTotalExclTax"], out priceExclTax);
-            var unitPriceTaxRate = decimal.Zero;
-            decimal.TryParse(form["TaxRate"], out unitPriceTaxRate);
 
             var warnings = new List<string>();
             var attributes = "";
@@ -2055,7 +2222,7 @@ namespace SmartStore.Admin.Controllers
             {
                 var attributeDescription = _productAttributeFormatter.FormatAttributes(product, attributes, order.Customer);
                 var displayDeliveryTime =
-                    _shoppingCartSettings.ShowDeliveryTimes &&
+                    _shoppingCartSettings.DeliveryTimesInShoppingCart != DeliveryTimesPresentation.None &&
                     product.DeliveryTimeId.HasValue &&
                     product.IsShipEnabled &&
                     product.DisplayDeliveryTimeAccordingToStock(_catalogSettings);
@@ -2144,6 +2311,8 @@ namespace SmartStore.Admin.Controllers
                     TempData[AutoUpdateOrderItemContext.InfoKey] = context.ToString(_localizationService);
                 }
 
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
                 // Redirect to order details page.
                 return RedirectToAction("Edit", "Order", new { id = order.Id });
             }
@@ -2183,6 +2352,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult AddressEdit(OrderAddressModel model)
         {
@@ -2204,6 +2374,8 @@ namespace SmartStore.Admin.Controllers
                 _addressService.UpdateAddress(address);
 
                 _eventPublisher.PublishOrderUpdated(order);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
 
                 NotifySuccess(T("Admin.Common.DataSuccessfullySaved"));
 
@@ -2331,6 +2503,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditShipment)]
         public ActionResult AddShipment(ShipmentModel model, FormCollection form, bool continueEditing)
         {
@@ -2361,6 +2534,8 @@ namespace SmartStore.Admin.Controllers
                 {
                     NotifySuccess(T("Admin.Orders.Shipments.Added"));
 
+                    _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
                     return continueEditing
                        ? RedirectToAction("ShipmentDetails", new { id = shipment.Id })
                        : RedirectToAction("Edit", new { id = order.Id });
@@ -2369,7 +2544,7 @@ namespace SmartStore.Admin.Controllers
                 {
                     NotifyError(T("Admin.Orders.Shipments.NoProductsSelected"));
 
-                    return RedirectToAction("AddShipment", new { order.Id });
+                    return RedirectToAction("AddShipment", new { orderId = order.Id });
                 }
             }
 
@@ -2392,6 +2567,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditShipment)]
         public ActionResult ShipmentDetails(ShipmentModel model, bool continueEditing)
         {
@@ -2419,6 +2595,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditShipment)]
         public ActionResult DeleteShipment(int id)
         {
@@ -2429,14 +2606,18 @@ namespace SmartStore.Admin.Controllers
             }
 
             var orderId = shipment.OrderId;
+            var orderNumber = shipment.Order.GetOrderNumber();
 
             NotifySuccess(T("Admin.Orders.Shipments.Deleted"));
             _shipmentService.DeleteShipment(shipment);
+
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", orderNumber));
 
             return RedirectToAction("Edit", new { id = orderId });
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditShipment)]
         public ActionResult SetAsShipped(int id)
         {
@@ -2449,6 +2630,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.Ship(shipment, true);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", shipment.Order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -2459,6 +2642,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.EditShipment)]
         public ActionResult SetAsDelivered(int id)
         {
@@ -2471,6 +2655,8 @@ namespace SmartStore.Admin.Controllers
             try
             {
                 _orderProcessingService.Deliver(shipment, true);
+
+                _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", shipment.Order.GetOrderNumber()));
             }
             catch (Exception ex)
             {
@@ -2589,6 +2775,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [ValidateInput(false)]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Order.Update)]
         public ActionResult OrderNoteAdd(int orderId, bool displayToCustomer, string message)
         {
@@ -2613,6 +2800,8 @@ namespace SmartStore.Admin.Controllers
                 Services.MessageFactory.SendNewOrderNoteAddedCustomerNotification(orderNote, _workContext.WorkingLanguage.Id);
             }
 
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
+
             return Json(new { Result = true }, JsonRequestBehavior.AllowGet);
         }
 
@@ -2624,6 +2813,8 @@ namespace SmartStore.Admin.Controllers
             var orderNote = order.OrderNotes.Where(on => on.Id == orderNoteId).FirstOrDefault();
 
             _orderService.DeleteOrderNote(orderNote);
+
+            _customerActivityService.InsertActivity("EditOrder", T("ActivityLog.EditOrder", order.GetOrderNumber()));
 
             return OrderNotesSelect(orderId, command);
         }
@@ -2939,12 +3130,12 @@ namespace SmartStore.Admin.Controllers
             foreach (var report in model)
             {
                 report.QuantityTotal = report.Quantity.ToString("N0");
-                report.AmountTotal = report.Amount.ToString("C0");
+                report.AmountTotal = _priceFormatter.FormatPrice(report.Amount, true, false);
                 for (int i = 0; i < report.Data.Count; i++)
                 {
                     var data = report.Data[i];
                     data.QuantityFormatted = data.Quantity.ToString("N0");
-                    data.AmountFormatted = data.Amount.ToString("C0");
+                    data.AmountFormatted = _priceFormatter.FormatPrice(data.Amount, true, false);
                 }
             }
 
@@ -2963,7 +3154,7 @@ namespace SmartStore.Admin.Controllers
                         order.CustomerId,
                         order.Customer.FindEmail() ?? order.Customer.FormatUserName(),
                         order.OrderItems.Sum(x => x.Quantity),
-                        order.OrderTotal.ToString("C0"),
+                        _priceFormatter.FormatPrice(order.OrderTotal, true, false),
                         _dateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc).ToString("g"),
                         order.OrderStatus,
                         order.Id)
@@ -3045,7 +3236,7 @@ namespace SmartStore.Admin.Controllers
 
             foreach (var dataPoint in orderDataPoints)
             {
-                dataPoint.CreatedOn = _dateTimeHelper.ConvertToUserTime(dataPoint.CreatedOn, DateTimeKind.Utc);
+                dataPoint.CreatedOn = _dateTimeHelper.ConvertToUserTime(dataPoint.CreatedOn, DateTimeKind.Utc);                
                 SetOrderReportData(model, dataPoint);
             }
 
@@ -3057,14 +3248,14 @@ namespace SmartStore.Admin.Controllers
                 {
                     for (int j = 0; j < data.Amount.Length; j++)
                     {
-                        data.AmountFormatted[j] = data.Amount[j].ToString("C0");
+                        data.AmountFormatted[j] = _priceFormatter.FormatPrice(data.Amount[j], true, false);
                         data.QuantityFormatted[j] = data.Quantity[j].ToString("N0");
                     }
                     data.TotalAmount = data.Amount.Sum();
-                    data.TotalAmountFormatted = data.TotalAmount.ToString("C0");
+                    data.TotalAmountFormatted = _priceFormatter.FormatPrice(data.TotalAmount, true, false);
                 }
                 model[i].TotalAmount = model[i].DataSets.Sum(x => x.TotalAmount);
-                model[i].TotalAmountFormatted = model[i].TotalAmount.ToString("C0");
+                model[i].TotalAmountFormatted = _priceFormatter.FormatPrice(model[i].TotalAmount, true, false);
 
                 // Create labels for all dataPoints
                 for (int j = 0; j < model[i].Labels.Length; j++)

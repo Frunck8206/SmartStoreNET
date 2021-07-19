@@ -109,6 +109,7 @@
 
     .avatar-letter {
         font-size: $h2-font-size;
+        line-height: 50px;
     }
 }
 
@@ -148,6 +149,10 @@
 
     .instasearch-button {
         height: 100%;
+    }
+
+    .img-center-container {
+        padding-top: 100%;
     }
 }
 
@@ -207,8 +212,8 @@
 .pd-section-top:hover .btn-admin-edit {
     display: inline-block;
 }
-// masonary grid
-.masonary-grid {
+// masonry grid
+.masonry-grid {
     display: grid;
     grid-gap: $list-group-item-padding-x;
     grid-template-columns: repeat(auto-fill, minmax(330px,1fr));

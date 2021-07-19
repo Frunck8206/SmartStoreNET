@@ -261,9 +261,8 @@
 	</div>
 }
 
-<script type="text/javascript">
-	$(document).ready(function () {
-
+<script>
+    $(function() {
 		// show/hide file name pattern descriptions
 		$('#FileNamePatternDescriptionLink').click(function () {
             var descriptions = $('#FileNamePatternDescription'),
@@ -277,6 +276,7 @@
 		// delete deployment
 		$('#export-deployment-list').find('.delete-depoyment').click(function () {
 			$(this).doPostData({
+                data: { "__RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val() },
 				ask: @T("Admin.Common.AskToProceed").JsText
 			});
 		});
@@ -301,6 +301,5 @@
 			fileDialog.modal('show');
 			return false;
 		});
-
 	});
 </script>

@@ -68,7 +68,7 @@ SmartStore.Admin.Charts = {
 
         const chartToggleListener = function (el, setChartData) {
             el.querySelectorAll(".btn-dashboard")
-                .forEach(function(value, index) {
+                .forEach(function (value, index) {
                     value.addEventListener("click", function (event) {
                         setChartData(index);
                     })
@@ -473,12 +473,12 @@ SmartStore.Admin.Charts = {
                         const dataset = chart.data.datasets[i];
                         dataset.hidden = Math.max(...dataset.data) <= 0 ? true : false;
                         if (dataset.hidden) {
-                            legendItems[legendItems.length - i - 1].classList.add('deactive');
                             legendItems[legendItems.length - i - 1].classList.add('hidden');
+                            legendItems[legendItems.length - i - 1].classList.add('inactive');
                         }
                         else {
                             legendItems[legendItems.length - i - 1].classList.remove('hidden');
-                            legendItems[legendItems.length - i - 1].classList.remove('deactive');
+                            legendItems[legendItems.length - i - 1].classList.remove('inactive');
                         }
                     }
                 }

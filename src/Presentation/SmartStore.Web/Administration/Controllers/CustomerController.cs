@@ -9,6 +9,7 @@ using SmartStore.Admin.Models.Common;
 using SmartStore.Admin.Models.Customers;
 using SmartStore.Admin.Models.Dashboard;
 using SmartStore.Admin.Models.ShoppingCart;
+using SmartStore.ComponentModel;
 using SmartStore.Core.Data;
 using SmartStore.Core.Domain.Common;
 using SmartStore.Core.Domain.Customers;
@@ -199,8 +200,6 @@ namespace SmartStore.Admin.Controllers
             string timeZoneId = model.TimeZoneId.HasValue() ? model.TimeZoneId : Services.DateTimeHelper.DefaultStoreTimeZone.Id;
 
             model.GridPageSize = _adminAreaSettings.GridPageSize;
-            model.UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email;
-            model.AllowUsersToChangeUsernames = _customerSettings.AllowUsersToChangeUsernames;
             model.AllowCustomersToSetTimeZone = _dateTimeSettings.AllowCustomersToSetTimeZone;
             model.DisplayVatNumber = false;
 
@@ -218,19 +217,10 @@ namespace SmartStore.Admin.Controllers
             model.AllowManagingCustomerRoles = Services.Permissions.Authorize(Permissions.Customer.EditRole);
 
             // Form fields
-            model.TitleEnabled = _customerSettings.TitleEnabled;
-            model.GenderEnabled = _customerSettings.GenderEnabled;
-            model.DateOfBirthEnabled = _customerSettings.DateOfBirthEnabled;
-            model.CompanyEnabled = _customerSettings.CompanyEnabled;
-            model.StreetAddressEnabled = _customerSettings.StreetAddressEnabled;
-            model.StreetAddress2Enabled = _customerSettings.StreetAddress2Enabled;
-            model.ZipPostalCodeEnabled = _customerSettings.ZipPostalCodeEnabled;
-            model.CityEnabled = _customerSettings.CityEnabled;
-            model.CountryEnabled = _customerSettings.CountryEnabled;
-            model.StateProvinceEnabled = _customerSettings.StateProvinceEnabled;
-            model.PhoneEnabled = _customerSettings.PhoneEnabled;
-            model.FaxEnabled = _customerSettings.FaxEnabled;
+            MiniMapper.Map(_customerSettings, model);
+
             model.CustomerNumberEnabled = _customerSettings.CustomerNumberMethod != CustomerNumberMethod.Disabled;
+            model.UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email;
 
             if (_customerSettings.CountryEnabled)
             {
@@ -263,16 +253,8 @@ namespace SmartStore.Admin.Controllers
         protected virtual void PrepareCustomerModelForEdit(CustomerModel model, Customer customer)
         {
             model.GridPageSize = _adminAreaSettings.GridPageSize;
-            model.UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email;
-            model.AllowUsersToChangeUsernames = _customerSettings.AllowUsersToChangeUsernames;
             model.AllowCustomersToSetTimeZone = _dateTimeSettings.AllowCustomersToSetTimeZone;
             model.Deleted = customer.Deleted;
-
-            foreach (var tzi in Services.DateTimeHelper.GetSystemTimeZones())
-            {
-                model.AvailableTimeZones.Add(new SelectListItem { Text = tzi.DisplayName, Value = tzi.Id, Selected = tzi.Id == model.TimeZoneId });
-            }
-
             model.DisplayVatNumber = _taxSettings.EuVatEnabled;
             model.VatNumberStatusNote = ((VatNumberStatus)customer.VatNumberStatusId).GetLocalizedEnum(Services.Localization, Services.WorkContext);
             model.CreatedOn = Services.DateTimeHelper.ConvertToUserTime(customer.CreatedOnUtc, DateTimeKind.Utc);
@@ -280,20 +262,16 @@ namespace SmartStore.Admin.Controllers
             model.LastIpAddress = model.LastIpAddress;
             model.LastVisitedPage = customer.GetAttribute<string>(SystemCustomerAttributeNames.LastVisitedPage);
 
+            foreach (var tzi in Services.DateTimeHelper.GetSystemTimeZones())
+            {
+                model.AvailableTimeZones.Add(new SelectListItem { Text = tzi.DisplayName, Value = tzi.Id, Selected = tzi.Id == model.TimeZoneId });
+            }
+
             // Form fields.
-            model.TitleEnabled = _customerSettings.TitleEnabled;
-            model.GenderEnabled = _customerSettings.GenderEnabled;
-            model.DateOfBirthEnabled = _customerSettings.DateOfBirthEnabled;
+            MiniMapper.Map(_customerSettings, model);
+
             model.CustomerNumberEnabled = _customerSettings.CustomerNumberMethod != CustomerNumberMethod.Disabled;
-            model.CompanyEnabled = _customerSettings.CompanyEnabled;
-            model.StreetAddressEnabled = _customerSettings.StreetAddressEnabled;
-            model.StreetAddress2Enabled = _customerSettings.StreetAddress2Enabled;
-            model.ZipPostalCodeEnabled = _customerSettings.ZipPostalCodeEnabled;
-            model.CityEnabled = _customerSettings.CityEnabled;
-            model.CountryEnabled = _customerSettings.CountryEnabled;
-            model.StateProvinceEnabled = _customerSettings.StateProvinceEnabled;
-            model.PhoneEnabled = _customerSettings.PhoneEnabled;
-            model.FaxEnabled = _customerSettings.FaxEnabled;
+            model.UsernamesEnabled = _customerSettings.CustomerLoginType != CustomerLoginType.Email;
 
             // Countries and states.
             if (_customerSettings.CountryEnabled)
@@ -470,6 +448,7 @@ namespace SmartStore.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         [ValidateInput(false)]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Create)]
         public ActionResult Create(CustomerModel model, bool continueEditing, FormCollection form)
         {
@@ -646,6 +625,7 @@ namespace SmartStore.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         [ValidateInput(false)]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Update)]
         public ActionResult Edit(CustomerModel model, bool continueEditing, FormCollection form)
         {
@@ -653,6 +633,12 @@ namespace SmartStore.Admin.Controllers
             if (customer == null || customer.Deleted)
             {
                 return RedirectToAction("List");
+            }
+
+            if (customer.IsAdmin() && !Services.WorkContext.CurrentCustomer.IsAdmin())
+            {
+                NotifyAccessDenied();
+                return RedirectToAction("Edit", new { customer.Id });
             }
 
             // Validate customer roles.
@@ -817,6 +803,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("changepassword")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Update)]
         public ActionResult ChangePassword(CustomerModel model)
         {
@@ -845,6 +832,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markVatNumberAsValid")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Update)]
         public ActionResult MarkVatNumberAsValid(CustomerModel model)
         {
@@ -861,6 +849,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markVatNumberAsInvalid")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Update)]
         public ActionResult MarkVatNumberAsInvalid(CustomerModel model)
         {
@@ -876,6 +865,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Delete)]
         public ActionResult Delete(int id)
         {
@@ -914,6 +904,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("impersonate")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.Impersonate)]
         public ActionResult Impersonate(int id)
         {
@@ -921,11 +912,11 @@ namespace SmartStore.Admin.Controllers
             if (customer == null)
                 return RedirectToAction("List");
 
-            // ensure that a non-admin user cannot impersonate as an administrator
-            // otherwise, that user can simply impersonate as an administrator and gain additional administrative privileges
+            // Ensure that a non-admin user cannot impersonate as an administrator
+            // Otherwise, that user can simply impersonate as an administrator and gain additional administrative privileges
             if (!Services.WorkContext.CurrentCustomer.IsAdmin() && customer.IsAdmin())
             {
-                NotifyError("A non-admin user cannot impersonate as an administrator");
+                NotifyAccessDenied();
                 return RedirectToAction("Edit", customer.Id);
             }
 
@@ -935,6 +926,7 @@ namespace SmartStore.Admin.Controllers
             return RedirectToAction("Index", "Home", new { area = "" });
         }
 
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.System.Message.Send)]
         public ActionResult SendEmail(CustomerModel model)
         {
@@ -973,6 +965,7 @@ namespace SmartStore.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.SendPm)]
         public ActionResult SendPm(CustomerModel model)
         {
@@ -1046,6 +1039,7 @@ namespace SmartStore.Admin.Controllers
             };
         }
 
+        [ValidateAntiForgeryToken]
         [ValidateInput(false)]
         [Permission(Permissions.Customer.Update)]
         public ActionResult RewardPointsHistoryAdd(int customerId, int addRewardPointsValue, string addRewardPointsMessage)
@@ -1081,6 +1075,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.EditAddress)]
         public ActionResult AddressCreate(CustomerAddressModel model, bool continueEditing)
         {
@@ -1158,6 +1153,7 @@ namespace SmartStore.Admin.Controllers
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.EditAddress)]
         public ActionResult AddressEdit(CustomerAddressModel model, bool continueEditing)
         {
@@ -1190,6 +1186,8 @@ namespace SmartStore.Admin.Controllers
             return View(model);
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Customer.EditAddress)]
         public ActionResult AddressDelete(int customerId, int addressId)
         {
@@ -1209,30 +1207,14 @@ namespace SmartStore.Admin.Controllers
             model.CustomerId = customer.Id;
             model.Username = customer.Username;
             model.Address = address?.ToModel() ?? new AddressModel();
-            model.Address.TitleEnabled = _addressSettings.TitleEnabled;
             model.Address.FirstNameEnabled = true;
             model.Address.FirstNameRequired = true;
             model.Address.LastNameEnabled = true;
             model.Address.LastNameRequired = true;
             model.Address.EmailEnabled = true;
             model.Address.EmailRequired = true;
-            model.Address.ValidateEmailAddress = _addressSettings.ValidateEmailAddress;
-            model.Address.CompanyEnabled = _addressSettings.CompanyEnabled;
-            model.Address.CompanyRequired = _addressSettings.CompanyRequired;
-            model.Address.CountryEnabled = _addressSettings.CountryEnabled;
-            model.Address.StateProvinceEnabled = _addressSettings.StateProvinceEnabled;
-            model.Address.CityEnabled = _addressSettings.CityEnabled;
-            model.Address.CityRequired = _addressSettings.CityRequired;
-            model.Address.StreetAddressEnabled = _addressSettings.StreetAddressEnabled;
-            model.Address.StreetAddressRequired = _addressSettings.StreetAddressRequired;
-            model.Address.StreetAddress2Enabled = _addressSettings.StreetAddress2Enabled;
-            model.Address.StreetAddress2Required = _addressSettings.StreetAddress2Required;
-            model.Address.ZipPostalCodeEnabled = _addressSettings.ZipPostalCodeEnabled;
-            model.Address.ZipPostalCodeRequired = _addressSettings.ZipPostalCodeRequired;
-            model.Address.PhoneEnabled = _addressSettings.PhoneEnabled;
-            model.Address.PhoneRequired = _addressSettings.PhoneRequired;
-            model.Address.FaxEnabled = _addressSettings.FaxEnabled;
-            model.Address.FaxRequired = _addressSettings.FaxRequired;
+
+            MiniMapper.Map(_addressSettings, model.Address);
 
             model.Address.AvailableCountries = _countryService.GetAllCountries(true)
                 .Select(x => new SelectListItem { Text = x.Name, Value = x.Id.ToString(), Selected = x.Id == address?.CountryId })
@@ -1476,7 +1458,7 @@ namespace SmartStore.Admin.Controllers
                     // Today & yesterday
                     if (i <= 1)
                     {
-                        model[i].Labels[j] = userTime.AddHours(j).ToString("t") + " - " 
+                        model[i].Labels[j] = userTime.AddHours(j).ToString("t") + " - "
                             + userTime.AddHours(j).AddMinutes(59).ToString("t");
                     }
                     // Last 7 days
@@ -1526,7 +1508,7 @@ namespace SmartStore.Admin.Controllers
             // Format percentage value
             for (int i = 0; i < model.Count; i++)
             {
-                model[i].PercentageDelta =  model[i].TotalAmount != 0 && sumBefore[i] != 0
+                model[i].PercentageDelta = model[i].TotalAmount != 0 && sumBefore[i] != 0
                     ? (int)Math.Round(model[i].TotalAmount / sumBefore[i] * 100 - 100)
                     : 0;
             }

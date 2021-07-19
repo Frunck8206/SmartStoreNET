@@ -72,7 +72,7 @@ namespace SmartStore.Admin.Controllers
             Guard.NotNull(model, nameof(model));
 
             model.SelectedStoreIds = _storeMappingService.GetStoresIdsWithAccess(country);
-            
+
             model.AllCurrencies = _currencyService.GetAllCurrencies(true)
                 .Select(x => new SelectListItem { Text = x.GetLocalized(y => y.Name), Value = x.Id.ToString() })
                 .ToList();
@@ -168,6 +168,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Configuration.Country.Create)]
         public ActionResult Create(CountryModel model, bool continueEditing, FormCollection form)
         {
@@ -210,6 +211,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Configuration.Country.Update)]
         public ActionResult Edit(CountryModel model, bool continueEditing, FormCollection form)
         {
@@ -239,6 +241,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Configuration.Country.Delete)]
         public ActionResult DeleteConfirmed(int id)
         {
@@ -300,6 +303,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Configuration.Country.Update)]
         public ActionResult StateCreatePopup(string btnId, string formId, StateProvinceModel model)
         {
@@ -343,6 +347,7 @@ namespace SmartStore.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         [Permission(Permissions.Configuration.Country.Update)]
         public ActionResult StateEditPopup(string btnId, string formId, StateProvinceModel model)
         {

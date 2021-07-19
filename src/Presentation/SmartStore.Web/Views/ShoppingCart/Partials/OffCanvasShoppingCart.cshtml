@@ -1,5 +1,6 @@
 ﻿@model MiniShoppingCartModel
 
+@using SmartStore.Services.Localization;
 @using SmartStore.Web.Models.ShoppingCart;
 @using SmartStore.Core.Domain.Orders;
 
@@ -104,23 +105,30 @@
                             }
                         </div>
                     </div>
-                    
+
                     <div class="row sm-gutters flex-wrap align-items-center mt-2">
                         <div class="col col-alpha">
-                           @Html.EditorFor(x => item, "QtyInput", new
-                           {
-                               htmlAttributes = new
-                               {
-                                   data_update_url = Url.Action("UpdateCartItem", "ShoppingCart"),
-                                   data_type = "cart",
-                                   data_sci_id = item.Id,
-                               }
-                           })
+                            @Html.EditorFor(x => item, "QtyInput", new
+                            {
+                                htmlAttributes = new
+                                {
+                                    data_update_url = Url.Action("UpdateCartItem", "ShoppingCart"),
+                                    data_type = "cart",
+                                    data_sci_id = item.Id,
+                                }
+                            })
                         </div>
                         <div class="col">
                             <span class="price unit-price">
                                 @item.UnitPrice
                             </span>
+
+                            @if (Model.ShowBasePrice && item.BasePriceInfo.HasValue())
+                            {
+                                <div class="pangv" @Html.Attr("title", item.BasePriceInfo, item.BasePriceInfo.HasValue())>
+                                    @Html.Raw(LocalizedValue.FixBrackets(item.BasePriceInfo, WorkContext.WorkingLanguage) ?? "&nbsp;")
+                                </div>
+                            }
                         </div>
 
                         <div class="ml-auto text-nowrap">
@@ -172,18 +180,29 @@
             </div>
         </div>
         <div class="offcanvas-cart-footer-col row sm-gutters d-flex flex-wrap">
-            <div class="col">
-                <a class="btn btn-success btn-flat btn-flat-light btn-block btn-action" href="@Url.RouteUrl("ShoppingCart")" id="mini-cart-basket">
-                    <i class="fa fa-check d-none"></i>
-                    <span>@T("ShoppingCart.Mini.ViewCart")</span>
-                </a>
-            </div>
-            <div class="col @(Model.DisplayCheckoutButton ? "" : "d-none")" id="mini-cart-checkout">
-                <a class="btn btn-clear btn-block btn-action" href="@checkoutUrl">
-                    <i class="fa fa-check"></i>
-                    <span>@T("Checkout.Button")</span>
-                </a>
-            </div>
+            @if (Model.DisplayCheckoutButton)
+            {
+                <div class="col">
+                    <a class="btn btn-success btn-flat btn-flat-light btn-block btn-action" href="@Url.RouteUrl("ShoppingCart")">
+                        @T("ShoppingCart.Mini.ViewCart")
+                    </a>
+                </div>
+                <div class="col">
+                    <a class="btn btn-clear btn-block btn-action" href="@checkoutUrl">
+                        <i class="fa fa-check"></i>
+                        <span>@T("Checkout.Button")</span>
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="col">
+                    <a class="btn btn-clear btn-block btn-action" href="@Url.RouteUrl("ShoppingCart")">
+                        <i class="fa fa-check"></i>
+                        <span>@T("ShoppingCart.Mini.ViewCart")</span>
+                    </a>
+                </div>
+            }
         </div>
     </div>
 

@@ -22,6 +22,7 @@
 
     Html.RenderAction("StoreScopeConfiguration", "Setting");
 
+    @Html.AntiForgeryToken()
     @Html.ValidationSummary(false)
 
     @Html.SmartStore().TabStrip().Name("ordersettings-edit").Style(TabsStyle.Material).Items(x =>
@@ -29,7 +30,6 @@
 		x.Add().Text(T("Admin.Configuration.Settings.Order.OrderSettings").Text).Content(TabOrderSettings()).Selected(true);
 		x.Add().Text(T("Admin.Configuration.Settings.Order.ReturnRequestSettings").Text).Content(TabReturnRequestSettings());
 
-		//generate an event
 		EngineContext.Current.Resolve<IEventPublisher>().Publish(new TabStripCreated(x, "ordersettings-edit", this.Html, this.Model));
     })
 }
@@ -48,29 +48,29 @@
     </tr>
     <tr>
         <td class="adminTitle">
-            @Html.SmartLabelFor(model => model.MinOrderAmount)
+            @Html.SmartLabelFor(model => model.OrderTotalMinimum)
         </td>
         <td class="adminData">
-            @Html.SettingEditorFor(model => model.MinOrderAmount, null, new { postfix = Model.PrimaryStoreCurrencyCode })
-            @Html.ValidationMessageFor(model => model.MinOrderAmount)
+            @Html.SettingEditorFor(model => model.OrderTotalMinimum, null, new { postfix = Model.PrimaryStoreCurrencyCode })
+            @Html.ValidationMessageFor(model => model.OrderTotalMinimum)
         </td>
     </tr>
     <tr>
         <td class="adminTitle">
-            @Html.SmartLabelFor(model => model.MaxOrderAmount)
+            @Html.SmartLabelFor(model => model.OrderTotalMaximum)
         </td>
         <td class="adminData">
-            @Html.SettingEditorFor(model => model.MaxOrderAmount, null, new { postfix = Model.PrimaryStoreCurrencyCode })
-            @Html.ValidationMessageFor(model => model.MaxOrderAmount)
+            @Html.SettingEditorFor(model => model.OrderTotalMaximum, null, new { postfix = Model.PrimaryStoreCurrencyCode })
+            @Html.ValidationMessageFor(model => model.OrderTotalMaximum)
         </td>
     </tr>
     <tr>
         <td class="adminTitle">
-            @Html.SmartLabelFor(model => model.ApplyToSubtotal)
+            @Html.SmartLabelFor(model => model.MultipleOrderTotalRestrictionsExpandRange)
         </td>
         <td class="adminData">
-            @Html.SettingEditorFor(model => model.ApplyToSubtotal)
-            @Html.ValidationMessageFor(model => model.ApplyToSubtotal)
+            @Html.SettingEditorFor(model => model.MultipleOrderTotalRestrictionsExpandRange)
+            @Html.ValidationMessageFor(model => model.MultipleOrderTotalRestrictionsExpandRange)
         </td>
     </tr>
     <tr>
@@ -189,20 +189,20 @@
 				<td class="adminTitle">
 					@Html.SmartLabelFor(model => model.Locales[item].ReturnRequestReasons)
 				</td>
-				<td class="adminData">
-					@*IMPORTANT: Do not delete, this hidden element contains the id to assign localized values to the corresponding language *@
-					@Html.HiddenFor(model => model.Locales[item].LanguageId)
+                <td class="adminData">
+                    @*IMPORTANT: Do not delete, this hidden element contains the id to assign localized values to the corresponding language *@
+                    @Html.HiddenFor(model => model.Locales[item].LanguageId)
 
-					@Html.TextBoxFor(model => Model.Locales[item].ReturnRequestReasons)
-					@Html.ValidationMessageFor(model => model.Locales[item].ReturnRequestReasons)
-				</td>
+                    @Html.SettingEditorFor(model => Model.Locales[item].ReturnRequestReasons)
+                    @Html.ValidationMessageFor(model => model.Locales[item].ReturnRequestReasons)
+                </td>
 			</tr>
 			<tr>
 				<td class="adminTitle">
 					@Html.SmartLabelFor(model => model.Locales[item].ReturnRequestActions)
 				</td>
 				<td class="adminData">
-					@Html.TextBoxFor(model => model.Locales[item].ReturnRequestActions)
+					@Html.SettingEditorFor(model => model.Locales[item].ReturnRequestActions)
 					@Html.ValidationMessageFor(model => model.Locales[item].ReturnRequestActions)
 				</td>
 			</tr>
@@ -214,7 +214,7 @@
 					@Html.SmartLabelFor(model => model.ReturnRequestReasons)
 				</td>
 				<td class="adminData">
-					@Html.TextBoxFor(model => model.ReturnRequestReasons)
+					@Html.SettingEditorFor(model => model.ReturnRequestReasons)
 					@Html.ValidationMessageFor(model => model.ReturnRequestReasons)
 				</td>
 			</tr>
@@ -223,7 +223,7 @@
 					@Html.SmartLabelFor(model => model.ReturnRequestActions)
 				</td>
 				<td class="adminData">
-					@Html.TextBoxFor(x => x.ReturnRequestActions)
+					@Html.SettingEditorFor(x => x.ReturnRequestActions)
 					@Html.ValidationMessageFor(model => model.ReturnRequestActions)
 				</td>
 			</tr>

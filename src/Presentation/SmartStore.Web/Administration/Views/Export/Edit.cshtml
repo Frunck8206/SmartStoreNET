@@ -9,7 +9,9 @@
 @using (Html.BeginForm())
 {
 	<fieldset>
+		@Html.AntiForgeryToken()
 		@Html.HiddenFor(model => model.Id)
+		@Html.HiddenFor(model => model.ProviderSystemName)
 
 		<div class="section-header">
 			<div class="title">
@@ -32,7 +34,7 @@
 						<span>@T("Admin.Common.Preview")</span>
 					</a>
 				}
-				
+
 				@if (Model.LogFileExists)
 				{
 					<a href="@Url.Action("DownloadLogFile", new { id = Model.Id })" class="btn btn-secondary" target="LogFile">
@@ -376,9 +378,8 @@
 
 @Html.DeleteConfirmation("export-profile-delete")
 
-<script type="text/javascript">
-	jQuery(document).ready(function () {
-		
+<script>
+    $(function() {
 		// show/hide store projection (cant be done with toggler, because the control is another tab)
 		$('#@(Html.FieldIdFor(x => x.PerStore))').change(function () {
 			$('#ProjectionStoreContainer').toggle(!$(this).is(':checked'));
@@ -415,7 +416,8 @@
 		$('#ProfileExportButton').click(function (e) {
 			e.preventDefault();
 			$(this).doPostData({
-				ask: @(T("Admin.Common.AskToProceed").JsText)
+				ask: @(T("Admin.Common.AskToProceed").JsText),
+                data: { "__RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val() }
 			});
 			return false;
 		});
